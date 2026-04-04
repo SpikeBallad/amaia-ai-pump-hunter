@@ -126,6 +126,22 @@ function MetricCard({ label, value, detail, tone }) {
   );
 }
 
+function buildSparklinePath(candles) {
+  if (!candles?.length) return '';
+  const values = candles.map((candle) => candle.close);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = Math.max(max - min, 0.000001);
+
+  return values
+    .map((value, index) => {
+      const x = (index / Math.max(values.length - 1, 1)) * 100;
+      const y = 100 - ((value - min) / range) * 100;
+      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(' ');
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -171,6 +187,12 @@ export default function DashboardPage() {
 
   const strongestRow = filteredRows[0] ?? topPanelRows[0] ?? null;
   const averageScore = summary.averageScore ? summary.averageScore.toFixed(1) : '0.0';
+  const sparklinePath = useMemo(() => buildSparklinePath(strongestRow?.candles ?? []), [strongestRow]);
+  const silentRows = useMemo(() => filteredRows.filter((row) => row.silentMarket).slice(0, 5), [filteredRows]);
+  const spikeRows = useMemo(
+    () => filteredRows.filter((row) => (row.volumePattern ?? '').toLowerCase().includes('spike')).slice(0, 5),
+    [filteredRows]
+  );
   const marketModeLabel =
     moduleFilter === 'watchlist'
       ? 'Pre-Pump Watchlist'
@@ -298,6 +320,50 @@ export default function DashboardPage() {
                   <p className="mt-5 text-sm leading-7 text-slate-400">
                     {strongestRow?.explanation ?? strongestRow?.summary ?? strongestRow?.setup ?? 'El scanner destacara aqui el mejor setup disponible segun score y narrativa.'}
                   </p>
+                  <div className="mt-5 rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(8,15,35,.95),rgba(6,12,28,.8))] p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.26em] text-slate-500">Tactical Chart View</p>
+                        <p className="mt-2 text-sm text-slate-300">Lectura rápida del activo líder con zona de acumulación y estructura de precio.</p>
+                      </div>
+                      <div className="text-right text-xs text-slate-500">
+                        <p>ATR {strongestRow ? (strongestRow.atrRatio ?? strongestRow.atr_ratio ?? '--') : '--'}</p>
+                        <p>{strongestRow?.volumePattern ?? '--'}</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_0.34fr]">
+                      <div className="rounded-[22px] border border-white/8 bg-slate-950/70 p-3">
+                        {sparklinePath ? (
+                          <svg viewBox="0 0 100 100" className="h-48 w-full">
+                            <defs>
+                              <linearGradient id="amaiaChartStroke" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#22d3ee" />
+                                <stop offset="100%" stopColor="#34d399" />
+                              </linearGradient>
+                            </defs>
+                            <rect x="6" y="30" width="88" height="32" rx="8" fill="rgba(34,211,238,0.08)" stroke="rgba(34,211,238,0.18)" strokeDasharray="3 3" />
+                            <path d={sparklinePath} fill="none" stroke="url(#amaiaChartStroke)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        ) : (
+                          <div className="flex h-48 items-center justify-center text-sm text-slate-500">No chart data yet.</div>
+                        )}
+                      </div>
+                      <div className="grid gap-3">
+                        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                          <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Accumulation Zone</p>
+                          <p className="mt-2 text-sm text-white">{formatPercent(strongestRow?.rangePct ?? strongestRow?.range_pct)}</p>
+                        </div>
+                        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                          <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Dump</p>
+                          <p className="mt-2 text-sm text-white">{formatPercent(strongestRow?.dumpPct ?? strongestRow?.dump_pct)}</p>
+                        </div>
+                        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                          <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Phase</p>
+                          <p className="mt-2 text-sm text-white">{strongestRow?.statusLabel ?? strongestRow?.status_label ?? '--'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="rounded-[30px] border border-white/10 bg-slate-950/70 p-5">
@@ -594,7 +660,21 @@ export default function DashboardPage() {
             <div className="glass-panel rounded-[36px] p-6">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Alert Log</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">Critical Signals</h2>
+                <h2 className="mt-2 text-xl font-semibold text-white">Alert Center</h2>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-500">High Alerts</p>
+                  <p className="mt-2 text-xl font-semibold text-emerald-300">{alertLog.filter((item) => item.estado === 'HIGH').length}</p>
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Watch Alerts</p>
+                  <p className="mt-2 text-xl font-semibold text-amber-300">{alertLog.filter((item) => item.estado === 'WATCHLIST').length}</p>
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                  <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Audio</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-100">{soundEnabled ? 'Enabled' : 'Disabled'}</p>
+                </div>
               </div>
               <div className="mt-5 space-y-3">
                 {alertLog.slice(0, 6).map((item) => (
@@ -649,6 +729,68 @@ export default function DashboardPage() {
                 {scoreChanges.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-5 text-sm text-slate-400">
                     Sin cambios de score recientes en el stream.
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            <div className="glass-panel rounded-[36px] p-6">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Silent Market Mode</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">Low Attention Assets</h2>
+              </div>
+              <div className="mt-4 flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
+                <span>Silent assets visible</span>
+                <span className="font-semibold text-cyan-300">{summary.silentCount}</span>
+              </div>
+              <div className="mt-4 space-y-3">
+                {silentRows.map((row) => (
+                  <div key={row.id} className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-white">{row.symbol}</p>
+                        <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500">{row.marketType}</p>
+                      </div>
+                      <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-300">
+                        Quiet
+                      </span>
+                    </div>
+                    <p className="mt-3 text-sm text-slate-400">{row.summary}</p>
+                  </div>
+                ))}
+                {silentRows.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-5 text-sm text-slate-400">
+                    No hay activos silenciosos destacados con los filtros actuales.
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            <div className="glass-panel rounded-[36px] p-6">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Volume Spike Detector</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">Expansion Radar</h2>
+              </div>
+              <div className="mt-4 flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
+                <span>Spike candidates</span>
+                <span className="font-semibold text-emerald-300">{summary.spikeCount}</span>
+              </div>
+              <div className="mt-4 space-y-3">
+                {spikeRows.map((row) => (
+                  <div key={row.id} className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-white">{row.symbol}</p>
+                        <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500">{row.volumePattern}</p>
+                      </div>
+                      <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
+                        Spike
+                      </span>
+                    </div>
+                    <p className="mt-3 text-sm text-slate-400">{row.summary}</p>
+                  </div>
+                ))}
+                {spikeRows.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-5 text-sm text-slate-400">
+                    No hay spikes relevantes en este universo filtrado.
                   </div>
                 ) : null}
               </div>

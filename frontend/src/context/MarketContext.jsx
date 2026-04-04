@@ -52,6 +52,7 @@ function mapScanToRow(scan) {
     signalLabel: scan.signal_label,
     signalStrength: scan.signal_strength,
     scoreBreakdown: scan.score_breakdown,
+    candles: scan.ohlcv?.candles ?? [],
   };
 }
 
@@ -87,6 +88,7 @@ function mergeTopRows(previousRows, topRows) {
       signalLabel: row.signal_label,
       signalStrength: row.opportunity_score,
       scoreBreakdown: row.score_breakdown,
+      candles: mergedById.get(rowId)?.candles ?? [],
     });
   });
   return Array.from(mergedById.values());
@@ -427,6 +429,8 @@ export function MarketProvider({ children }) {
       spotCount: filteredRows.filter((row) => row.marketBucket === 'spot').length,
       futuresCount: filteredRows.filter((row) => row.marketBucket === 'futures').length,
       watchlistCountOnly: filteredRows.filter((row) => row.score >= 8 && !row.isBreakingOut).length,
+      silentCount: filteredRows.filter((row) => row.silentMarket).length,
+      spikeCount: filteredRows.filter((row) => (row.volumePattern ?? '').toLowerCase().includes('spike')).length,
     };
   }, [filteredRows]);
 
