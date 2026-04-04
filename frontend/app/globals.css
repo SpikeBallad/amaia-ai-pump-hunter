@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --bg: #040816;
+  --panel: rgba(8, 15, 33, 0.74);
+  --border: rgba(148, 163, 184, 0.12);
+  --text: rgba(241, 245, 249, 0.96);
+  --muted: rgba(148, 163, 184, 0.72);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top, rgba(34, 211, 238, 0.18), transparent 24%),
+    radial-gradient(circle at 80% 12%, rgba(52, 211, 153, 0.12), transparent 18%),
+    linear-gradient(180deg, #020617 0%, #040816 46%, #02030b 100%);
+  background-color: var(--bg);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  color: var(--text);
+  font-family: "Aptos", "Bahnschrift", "Trebuchet MS", sans-serif;
+  background:
+    radial-gradient(circle at center, rgba(14, 165, 233, 0.05), transparent 38%),
+    linear-gradient(180deg, rgba(4, 8, 22, 0.82) 0%, rgba(2, 6, 23, 0.96) 100%);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(rgba(148, 163, 184, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.04) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(circle at center, black, transparent 78%);
+  opacity: 0.38;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(34, 211, 238, 0.24);
+  color: #ecfeff;
+}
+
+.glass-panel {
+  background: linear-gradient(180deg, rgba(8, 15, 33, 0.92), rgba(6, 11, 25, 0.72));
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 90px rgba(2, 6, 23, 0.5);
+  backdrop-filter: blur(24px);
+}
+
+.font-mono {
+  font-family: "Cascadia Mono", "JetBrains Mono", "Consolas", monospace;
+}
