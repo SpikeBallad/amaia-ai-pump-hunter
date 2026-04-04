@@ -30,6 +30,11 @@ const narrativeOptions = [
   { value: 'Microcaps (MEXC)', label: 'Microcaps MEXC' },
 ];
 
+const marketPillStyles = {
+  spot: 'border-cyan-500/20 bg-cyan-500/10 text-cyan-300',
+  futures: 'border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-300',
+};
+
 function formatPrice(value) {
   if (typeof value !== 'number') return '--';
   if (value >= 1000) return `$${value.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
@@ -61,6 +66,10 @@ function formatTime(dateValue) {
 
 function getStateClass(state) {
   return stateStyles[state] ?? stateStyles.IGNORE;
+}
+
+function getMarketTypeClass(marketType) {
+  return marketPillStyles[marketType] ?? 'border-white/10 bg-white/[0.04] text-slate-300';
 }
 
 function getSocketClass(status) {
@@ -170,6 +179,7 @@ export default function DashboardPage() {
 
   const strongestRow = filteredRows[0] ?? topPanelRows[0] ?? null;
   const averageScore = summary.averageScore ? summary.averageScore.toFixed(1) : '0.0';
+  const marketModeLabel = marketTypeFilter === 'all' ? 'Cross Market' : marketTypeFilter === 'futures' ? 'Futures Radar' : 'Spot Radar';
 
   function handleLogout() {
     startTransition(async () => {
@@ -227,12 +237,44 @@ export default function DashboardPage() {
                 <MetricCard label="Average Score" value={averageScore} tone="text-cyan-300" detail="Promedio del universo filtrado actual." />
               </div>
 
+              <div className="grid gap-4 xl:grid-cols-4">
+                <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Mode</p>
+                  <p className="mt-3 text-lg font-semibold text-white">{marketModeLabel}</p>
+                </div>
+                <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Visible Universe</p>
+                  <p className="mt-3 text-lg font-semibold text-white">{summary.visibleCount}</p>
+                </div>
+                <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Spot</p>
+                  <p className="mt-3 text-lg font-semibold text-cyan-300">{summary.spotCount}</p>
+                </div>
+                <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Futures</p>
+                  <p className="mt-3 text-lg font-semibold text-fuchsia-300">{summary.futuresCount}</p>
+                </div>
+              </div>
+
               <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
                 <div className="rounded-[30px] border border-white/10 bg-slate-950/70 p-5">
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Hunter Focus</p>
                       <h2 className="mt-2 text-2xl font-semibold text-white">{strongestRow ? strongestRow.symbol : 'Waiting for signal'}</h2>
+                      {strongestRow ? (
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${getMarketTypeClass(strongestRow.marketType)}`}>
+                            {strongestRow.marketType.toUpperCase()}
+                          </span>
+                          <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-slate-300">
+                            {strongestRow.exchange.toUpperCase()}
+                          </span>
+                          <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
+                            {strongestRow.signalLabel}
+                          </span>
+                        </div>
+                      ) : null}
                     </div>
                     {strongestRow ? (
                       <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${getStateClass(strongestRow.estado)}`}>
@@ -330,16 +372,24 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="mt-5 space-y-3">
+              <div className="mt-5 space-y-3">
               {topPanelRows.slice(0, 10).map((row, index) => (
-                <div key={`${row.exchange}-${row.symbol}`} className="rounded-[26px] border border-white/10 bg-white/[0.03] p-4 transition hover:border-cyan-400/20 hover:bg-white/[0.05]">
+                <div key={`${row.market_type}-${row.exchange}-${row.symbol}`} className="rounded-[26px] border border-white/10 bg-white/[0.03] p-4 transition hover:border-cyan-400/20 hover:bg-white/[0.05]">
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <div className="flex items-center gap-3">
                         <span className="text-xs uppercase tracking-[0.26em] text-slate-500">#{String(index + 1).padStart(2, '0')}</span>
                         <h3 className="text-lg font-semibold text-white">{row.symbol}</h3>
                       </div>
-                      <p className="mt-2 text-sm text-slate-400">{row.exchange.toUpperCase()} · {row.narrative_label ?? row.narrative}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getMarketTypeClass(row.market_type)}`}>
+                          {row.market_type.toUpperCase()}
+                        </span>
+                        <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
+                          {row.signal_label}
+                        </span>
+                        <span className="text-sm text-slate-400">{row.exchange.toUpperCase()} · {row.narrative_label ?? row.narrative}</span>
+                      </div>
                     </div>
                     <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${getStateClass(row.estado)}`}>{row.estado}</span>
                   </div>
@@ -361,13 +411,9 @@ export default function DashboardPage() {
           </aside>
         </section>
 
-        {marketTypeFilter === 'futures' ? (
-          <div className="glass-panel rounded-[28px] border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-200">
-            El backend actual solo expone datos spot. El filtro futures ya esta preparado para la siguiente fase.
-          </div>
-        ) : socketStatus === 'disabled' ? (
+        {socketStatus === 'disabled' ? (
           <div className="glass-panel rounded-[28px] border border-white/10 bg-white/[0.04] p-4 text-sm text-slate-300">
-            El dashboard esta corriendo en modo REST only. Activa `NEXT_PUBLIC_WS_URL` cuando el backend realtime este disponible.
+            El dashboard esta corriendo en modo REST only. En `spot` usamos WebSocket; en `all` y `futures` se refresca por REST cada 30 segundos.
           </div>
         ) : (
           <div className="glass-panel rounded-[28px] border border-cyan-500/20 bg-cyan-500/10 p-4 text-sm text-cyan-100">
@@ -411,9 +457,17 @@ export default function DashboardPage() {
                         <td className="px-5 py-4">
                           <div className="flex flex-col">
                             <span className="font-semibold text-white">{row.symbol}</span>
-                            <span className="mt-1 text-xs uppercase tracking-[0.22em] text-slate-500">
-                              {row.exchange} · {row.narrativeLabel ?? row.narrative}
-                            </span>
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getMarketTypeClass(row.marketType)}`}>
+                                {row.marketType.toUpperCase()}
+                              </span>
+                              <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
+                                {row.signalLabel}
+                              </span>
+                              <span className="text-xs uppercase tracking-[0.22em] text-slate-500">
+                                {row.exchange} · {row.narrativeLabel ?? row.narrative}
+                              </span>
+                            </div>
                           </div>
                         </td>
                         <td className="px-5 py-4 text-sm text-slate-200">{formatPrice(row.price)}</td>
@@ -530,9 +584,14 @@ export default function DashboardPage() {
               </div>
               <div className="mt-5 space-y-3">
                 {scoreChanges.slice(0, 5).map((change) => (
-                  <div key={`${change.symbol}-${change.current_score}-${change.previous_score}`} className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
+                  <div key={`${change.market_type}-${change.exchange}-${change.symbol}-${change.current_score}-${change.previous_score}`} className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-white">{change.symbol}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-white">{change.symbol}</span>
+                        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getMarketTypeClass(change.market_type)}`}>
+                          {change.market_type.toUpperCase()}
+                        </span>
+                      </div>
                       <span className="font-mono text-cyan-300">
                         {change.previous_score} → {change.current_score}
                       </span>

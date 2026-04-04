@@ -4,6 +4,8 @@ Stack serio para monitorizar oportunidades de mercado con narrativa, scoring y a
 
 - `frontend/`: Next.js + Tailwind + login protegido
 - `backend/`: FastAPI + cache + escaneo + WebSocket
+- mercados soportados: `spot` y `futures` en el dashboard
+- narrativas configurables y señales compuestas visibles en UI
 
 ## Arquitectura recomendada
 
@@ -60,6 +62,7 @@ Usa `backend/.env.example` como base:
 
 ```bash
 AMAIA_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,https://your-frontend.vercel.app
+AMAIA_BINANCE_FUTURES_KLINES_URL=https://fapi.binance.com/fapi/v1/klines
 AMAIA_REDIS_URL=
 ```
 
@@ -144,7 +147,9 @@ AMAIA_ALLOWED_ORIGINS=https://tu-frontend.vercel.app
 ## Estado actual
 
 - login protegido listo
-- dashboard premium listo
-- REST listo
-- WebSocket listo para entornos que lo soporten bien
-- fallback `REST only` listo para frontend
+- dashboard premium pulido
+- REST listo para `spot` y `futures`
+- WebSocket listo para `spot`
+- fallback `REST only` listo para `all` y `futures`
+- narrativas movidas a config dedicada
+- señales visibles tipo `Breakout Build`, `Pressure Coil`, `No Edge`

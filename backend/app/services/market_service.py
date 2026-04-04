@@ -2,10 +2,13 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from statistics import mean
 
+from app.core.narratives import get_narrative, get_narrative_label
 from app.core.config import settings
 from app.models.market import (
     CacheInvalidateResponse,
     CacheStatsResponse,
+    MarketTypeFilter,
+    MarketTypeName,
     MarketOverviewResponse,
     PairItem,
     PairListResponse,
@@ -16,55 +19,14 @@ from app.models.market import (
 )
 from app.services.exchange_service import fetch_ohlcv
 
-TOKEN_NARRATIVES = {
-    "BTCUSDT": "Smart Money",
-    "ETHUSDT": "Smart Money",
-    "SOLUSDT": "AI",
-    "XRPUSDT": "All Market",
-    "DOGEUSDT": "All Market",
-    "ADAUSDT": "Gaming",
-    "AVAXUSDT": "Gaming",
-    "LINKUSDT": "Infra",
-    "BNBUSDT": "Smart Money",
-    "TRXUSDT": "All Market",
-    "DOTUSDT": "Infra",
-    "LTCUSDT": "All Market",
-    "SUIUSDT": "Infra",
-    "APTUSDT": "Infra",
-    "NEARUSDT": "AI",
-    "ARBUSDT": "Infra",
-    "OPUSDT": "Infra",
-    "TIAUSDT": "DePIN",
-    "SEIUSDT": "Gaming",
-    "WIFUSDT": "Microcaps (MEXC)",
-    "PEPEUSDT": "Microcaps (MEXC)",
-    "SHIBUSDT": "Microcaps (MEXC)",
-    "UNIUSDT": "All Market",
-    "ATOMUSDT": "Infra",
-}
-
-CORE_NARRATIVE_LABELS = {"AI", "DePIN", "Infra", "Gaming"}
-_scan_cache: dict[tuple[str, str, str], tuple[datetime, ScanResult]] = {}
-_overview_cache: dict[tuple[str, str, int], tuple[datetime, MarketOverviewResponse]] = {}
+_scan_cache: dict[tuple[str, str, str, str], tuple[datetime, ScanResult]] = {}
+_overview_cache: dict[tuple[str, str, str, int], tuple[datetime, MarketOverviewResponse]] = {}
 _scan_cache_lock = asyncio.Lock()
 _overview_cache_lock = asyncio.Lock()
 _scan_cache_hits = 0
 _scan_cache_misses = 0
 _overview_cache_hits = 0
 _overview_cache_misses = 0
-
-
-def _get_narrative(symbol: str) -> str:
-    label = TOKEN_NARRATIVES.get(symbol.upper(), "All Market")
-    if label in CORE_NARRATIVE_LABELS:
-        return "Core Narratives"
-    return label
-
-
-def _get_narrative_label(symbol: str) -> str:
-    return TOKEN_NARRATIVES.get(symbol.upper(), "All Market")
-
-
 def list_pairs() -> PairListResponse:
     pairs = [
         PairItem(
@@ -72,8 +34,9 @@ def list_pairs() -> PairListResponse:
             base_asset=symbol.removesuffix("USDT"),
             quote_asset="USDT",
             supported_exchanges=["binance", "mexc"],
-            narrative=_get_narrative(symbol),
-            narrative_label=_get_narrative_label(symbol),
+            supported_market_types=["spot", "futures"],
+            narrative=get_narrative(symbol),
+            narrative_label=get_narrative_label(symbol),
         )
         for symbol in settings.pair_universe[: settings.max_scan_pairs]
     ]
@@ -81,6 +44,7 @@ def list_pairs() -> PairListResponse:
         pairs=pairs,
         total=len(pairs),
         supported_timeframes=["1D", "4H"],
+        supported_market_types=["spot", "futures"],
     )
 
 
@@ -186,7 +150,7 @@ def _build_score(
     lows: list[float],
     volumes: list[float],
     indicators: dict[str, float | None],
-) -> tuple[int, str, dict[str, int], str]:
+) -> tuple[int, str, dict[str, int], str, str]:
     last_close = closes[-1]
     ema_9 = indicators["ema_9"] or last_close
     ema_20 = indicators["ema_20"] or last_close
@@ -222,15 +186,18 @@ def _build_score(
 
     if score >= 7:
         estado = "HIGH"
+        signal_label = "Breakout Build"
         summary = "Setup de compresion fuerte con alta probabilidad de ruptura."
     elif score >= 4:
         estado = "WATCHLIST"
+        signal_label = "Pressure Coil"
         summary = "Estructura interesante; conviene vigilar confirmacion."
     else:
         estado = "IGNORE"
+        signal_label = "No Edge"
         summary = "El par no muestra suficiente compresion para este setup."
 
-    return score, estado, score_breakdown, summary
+    return score, estado, score_breakdown, summary, signal_label
 
 
 def _signal_strength_from_score(score: int) -> float:
@@ -270,7 +237,7 @@ def _utc_now() -> datetime:
     return datetime.now(tz=UTC)
 
 
-def _get_cached_scan(cache_key: tuple[str, str, str]) -> ScanResult | None:
+def _get_cached_scan(cache_key: tuple[str, str, str, str]) -> ScanResult | None:
     global _scan_cache_hits, _scan_cache_misses
     cached_entry = _scan_cache.get(cache_key)
     if cached_entry is None:
@@ -285,7 +252,7 @@ def _get_cached_scan(cache_key: tuple[str, str, str]) -> ScanResult | None:
     return scan
 
 
-async def _set_cached_scan(cache_key: tuple[str, str, str], scan: ScanResult) -> None:
+async def _set_cached_scan(cache_key: tuple[str, str, str, str], scan: ScanResult) -> None:
     async with _scan_cache_lock:
         _scan_cache[cache_key] = (
             _utc_now() + timedelta(seconds=settings.scan_cache_ttl_seconds),
@@ -293,7 +260,7 @@ async def _set_cached_scan(cache_key: tuple[str, str, str], scan: ScanResult) ->
         )
 
 
-def _get_cached_overview(cache_key: tuple[str, str, int]) -> MarketOverviewResponse | None:
+def _get_cached_overview(cache_key: tuple[str, str, str, int]) -> MarketOverviewResponse | None:
     global _overview_cache_hits, _overview_cache_misses
     cached_entry = _overview_cache.get(cache_key)
     if cached_entry is None:
@@ -308,7 +275,7 @@ def _get_cached_overview(cache_key: tuple[str, str, int]) -> MarketOverviewRespo
     return overview
 
 
-async def _set_cached_overview(cache_key: tuple[str, str, int], overview: MarketOverviewResponse) -> None:
+async def _set_cached_overview(cache_key: tuple[str, str, str, int], overview: MarketOverviewResponse) -> None:
     async with _overview_cache_lock:
         _overview_cache[cache_key] = (
             _utc_now() + timedelta(seconds=settings.overview_cache_ttl_seconds),
@@ -316,25 +283,31 @@ async def _set_cached_overview(cache_key: tuple[str, str, int], overview: Market
         )
 
 
-async def scan_pair(symbol: str, timeframe: TimeframeName = "4H", exchange: str = "auto") -> ScanResult:
-    cache_key = (symbol.upper(), timeframe, exchange)
+async def scan_pair(
+    symbol: str,
+    timeframe: TimeframeName = "4H",
+    exchange: str = "auto",
+    market_type: MarketTypeName = "spot",
+) -> ScanResult:
+    cache_key = (symbol.upper(), timeframe, exchange, market_type)
     cached_scan = _get_cached_scan(cache_key)
     if cached_scan is not None:
         return cached_scan
 
-    ohlcv = await fetch_ohlcv(symbol=symbol, timeframe=timeframe, exchange=exchange)
+    ohlcv = await fetch_ohlcv(symbol=symbol, timeframe=timeframe, exchange=exchange, market_type=market_type)
     closes = [candle.close for candle in ohlcv.candles]
     highs = [candle.high for candle in ohlcv.candles]
     lows = [candle.low for candle in ohlcv.candles]
     volumes = [candle.volume for candle in ohlcv.candles]
     indicators = _build_indicator_snapshot(closes, highs, lows, volumes)
-    score, estado, score_breakdown, summary = _build_score(closes, highs, lows, volumes, indicators)
+    score, estado, score_breakdown, summary, signal_label = _build_score(closes, highs, lows, volumes, indicators)
 
     scan = ScanResult(
         exchange=ohlcv.exchange,
         symbol=ohlcv.symbol,
-        narrative=_get_narrative(ohlcv.symbol),
-        narrative_label=_get_narrative_label(ohlcv.symbol),
+        market_type=ohlcv.market_type,
+        narrative=get_narrative(ohlcv.symbol),
+        narrative_label=get_narrative_label(ohlcv.symbol),
         timeframe=timeframe,
         score=score,
         estado=estado,
@@ -342,6 +315,7 @@ async def scan_pair(symbol: str, timeframe: TimeframeName = "4H", exchange: str 
         signal_strength=_signal_strength_from_score(score),
         volume_score=_volume_score(indicators),
         momentum_score=_momentum_score(indicators),
+        signal_label=signal_label,
         summary=summary,
         indicators=indicators,
         score_breakdown=score_breakdown,
@@ -351,31 +325,46 @@ async def scan_pair(symbol: str, timeframe: TimeframeName = "4H", exchange: str 
     return scan
 
 
+def _build_market_requests(market_type: MarketTypeFilter) -> list[MarketTypeName]:
+    if market_type == "all":
+        return ["spot", "futures"]
+    return [market_type]
+
+
 async def get_market_overview(
     timeframe: TimeframeName = "4H",
     exchange: str = "auto",
+    market_type: MarketTypeFilter = "spot",
     limit: int = 10,
 ) -> MarketOverviewResponse:
-    overview_cache_key = (exchange, timeframe, limit)
+    overview_cache_key = (exchange, timeframe, market_type, limit)
     cached_overview = _get_cached_overview(overview_cache_key)
     if cached_overview is not None:
         return cached_overview
 
     symbols = settings.pair_universe[: settings.max_scan_pairs]
-    semaphore = asyncio.Semaphore(6)
+    market_requests = _build_market_requests(market_type)
+    semaphore = asyncio.Semaphore(8)
 
-    async def _scan(symbol: str) -> ScanResult | None:
+    async def _scan(symbol: str, request_market_type: MarketTypeName) -> ScanResult | None:
         async with semaphore:
             try:
-                return await scan_pair(symbol=symbol, timeframe=timeframe, exchange=exchange)
+                return await scan_pair(
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    exchange=exchange,
+                    market_type=request_market_type,
+                )
             except Exception:
                 return None
 
-    scans = await asyncio.gather(*[_scan(symbol) for symbol in symbols])
+    scans = await asyncio.gather(
+        *[_scan(symbol, request_market_type) for request_market_type in market_requests for symbol in symbols]
+    )
     valid_scans = [scan for scan in scans if scan is not None]
     ranked_scans = sorted(
         valid_scans,
-        key=lambda item: (item.score, item.signal_strength, item.volume_score),
+        key=lambda item: (item.score, item.signal_strength, item.volume_score, item.market_type == "futures"),
         reverse=True,
     )[:limit]
 
@@ -384,12 +373,14 @@ async def get_market_overview(
             rank=index,
             exchange=scan.exchange,
             symbol=scan.symbol,
+            market_type=scan.market_type,
             narrative=scan.narrative,
             narrative_label=scan.narrative_label,
             timeframe=scan.timeframe,
             score=scan.score,
             estado=scan.estado,
             opportunity_score=scan.signal_strength,
+            signal_label=scan.signal_label,
             setup=scan.summary,
             confidence="high" if scan.signal_strength >= 80 else "medium" if scan.signal_strength >= 65 else "low",
             indicators=scan.indicators,
@@ -412,9 +403,10 @@ async def get_market_overview(
 async def get_top_opportunities(
     timeframe: TimeframeName = "4H",
     exchange: str = "auto",
+    market_type: MarketTypeFilter = "spot",
     limit: int = 10,
 ) -> TopOpportunitiesResponse:
-    overview = await get_market_overview(timeframe=timeframe, exchange=exchange, limit=limit)
+    overview = await get_market_overview(timeframe=timeframe, exchange=exchange, market_type=market_type, limit=limit)
     return TopOpportunitiesResponse(opportunities=overview.top, total=len(overview.top))
 
 

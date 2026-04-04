@@ -21,10 +21,10 @@ const MarketContext = createContext(null);
 
 function mapScanToRow(scan) {
   return {
-    id: `${scan.exchange}-${scan.symbol}`,
+    id: `${scan.market_type}-${scan.exchange}-${scan.symbol}`,
     symbol: scan.symbol,
     exchange: scan.exchange,
-    marketType: 'spot',
+    marketType: scan.market_type,
     narrative: scan.narrative,
     narrativeLabel: scan.narrative_label,
     price: scan.indicators?.last_close ?? null,
@@ -33,27 +33,30 @@ function mapScanToRow(scan) {
     volume: scan.indicators?.avg_volume_20 ?? null,
     volatility: scan.indicators?.atr_pct ?? null,
     summary: scan.summary,
+    signalLabel: scan.signal_label,
     signalStrength: scan.signal_strength,
     scoreBreakdown: scan.score_breakdown,
   };
 }
 
 function mergeTopRows(previousRows, topRows) {
-  const mergedById = new Map(previousRows.map((row) => [`${row.exchange}-${row.symbol}`, row]));
+  const mergedById = new Map(previousRows.map((row) => [`${row.marketType}-${row.exchange}-${row.symbol}`, row]));
   topRows.forEach((row) => {
-    mergedById.set(`${row.exchange}-${row.symbol}`, {
-      id: `${row.exchange}-${row.symbol}`,
+    const rowId = `${row.market_type}-${row.exchange}-${row.symbol}`;
+    mergedById.set(rowId, {
+      id: rowId,
       symbol: row.symbol,
       exchange: row.exchange,
-      marketType: 'spot',
+      marketType: row.market_type,
       narrative: row.narrative,
       narrativeLabel: row.narrative_label,
-      price: mergedById.get(`${row.exchange}-${row.symbol}`)?.price ?? null,
+      price: mergedById.get(rowId)?.price ?? null,
       score: row.score,
       estado: row.estado,
-      volume: mergedById.get(`${row.exchange}-${row.symbol}`)?.volume ?? null,
-      volatility: mergedById.get(`${row.exchange}-${row.symbol}`)?.volatility ?? null,
+      volume: mergedById.get(rowId)?.volume ?? null,
+      volatility: mergedById.get(rowId)?.volatility ?? null,
       summary: row.setup,
+      signalLabel: row.signal_label,
       signalStrength: row.opportunity_score,
       scoreBreakdown: row.score_breakdown,
     });
@@ -64,7 +67,7 @@ function mergeTopRows(previousRows, topRows) {
 export function MarketProvider({ children }) {
   const [backendStatus, setBackendStatus] = useState('Conectando...');
   const [exchangeFilter, setExchangeFilter] = useState('all');
-  const [marketTypeFilter, setMarketTypeFilter] = useState('all');
+  const [marketTypeFilter, setMarketTypeFilter] = useState('spot');
   const [narrativeFilter, setNarrativeFilter] = useState('All Market');
   const [scoreFilter, setScoreFilter] = useState(4);
   const [rows, setRows] = useState([]);
@@ -81,18 +84,24 @@ export function MarketProvider({ children }) {
   const [cacheStats, setCacheStats] = useState(null);
 
   const resolvedExchange = exchangeFilter === 'all' ? 'auto' : exchangeFilter;
+  const resolvedMarketType = marketTypeFilter === 'all' ? 'all' : marketTypeFilter;
 
   const websocketRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const refreshIntervalRef = useRef(null);
   const mountedRef = useRef(true);
   const resolvedExchangeRef = useRef(resolvedExchange);
+  const resolvedMarketTypeRef = useRef(resolvedMarketType);
   const alertTimeoutRef = useRef(null);
   const lastAlertScoresRef = useRef(new Map());
 
   useEffect(() => {
     resolvedExchangeRef.current = resolvedExchange;
   }, [resolvedExchange]);
+
+  useEffect(() => {
+    resolvedMarketTypeRef.current = resolvedMarketType;
+  }, [resolvedMarketType]);
 
   const dismissActiveAlert = useCallback(() => {
     setActiveAlert(null);
@@ -173,11 +182,16 @@ export function MarketProvider({ children }) {
     }
 
     try {
-      const [healthData, overviewData, cacheStatsData] = await Promise.all([
-        fetchHealth(),
-        fetchOverview({ exchange: resolvedExchangeRef.current, limit: 10, timeframe: '4H' }),
-        fetchCacheStats(),
-      ]);
+        const [healthData, overviewData, cacheStatsData] = await Promise.all([
+          fetchHealth(),
+          fetchOverview({
+            exchange: resolvedExchangeRef.current,
+            marketType: resolvedMarketTypeRef.current,
+            limit: 10,
+            timeframe: '4H',
+          }),
+          fetchCacheStats(),
+        ]);
       const nextRows = (overviewData.scans ?? []).map((scan) => mapScanToRow(scan));
 
       if (!mountedRef.current) {
@@ -231,10 +245,10 @@ export function MarketProvider({ children }) {
         window.clearInterval(refreshIntervalRef.current);
       }
     };
-  }, [refreshMarketData, resolvedExchange]);
+  }, [refreshMarketData, resolvedExchange, resolvedMarketType]);
 
   useEffect(() => {
-    if (!WS_URL) {
+    if (!WS_URL || resolvedMarketType !== 'spot') {
       setSocketStatus('disabled');
       return undefined;
     }
@@ -326,7 +340,7 @@ export function MarketProvider({ children }) {
     return () => {
       cleanupSocket();
     };
-  }, [refreshMarketData, syncAlertsFromRows]);
+  }, [refreshMarketData, resolvedMarketType, syncAlertsFromRows]);
 
   useEffect(() => {
     return () => {
@@ -349,7 +363,7 @@ export function MarketProvider({ children }) {
   const topPanelRows = useMemo(() => {
     return topRows.filter((row) => {
       const exchangeMatches = exchangeFilter === 'all' || row.exchange === exchangeFilter;
-      const marketMatches = marketTypeFilter !== 'futures';
+      const marketMatches = marketTypeFilter === 'all' || row.marketType === marketTypeFilter;
       const narrativeMatches = narrativeFilter === 'All Market' || row.narrative === narrativeFilter;
       const scoreMatches = row.score >= scoreFilter;
       return exchangeMatches && marketMatches && narrativeMatches && scoreMatches;
@@ -367,6 +381,9 @@ export function MarketProvider({ children }) {
       highCount,
       watchlistCount,
       averageScore,
+      visibleCount: filteredRows.length,
+      spotCount: filteredRows.filter((row) => row.marketType === 'spot').length,
+      futuresCount: filteredRows.filter((row) => row.marketType === 'futures').length,
     };
   }, [filteredRows]);
 

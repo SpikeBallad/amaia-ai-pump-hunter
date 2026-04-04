@@ -39,9 +39,9 @@ export async function fetchHealth() {
   return data;
 }
 
-export async function fetchOverview({ exchange = 'auto', limit = 10, timeframe = '4H' } = {}) {
+export async function fetchOverview({ exchange = 'auto', marketType = 'spot', limit = 10, timeframe = '4H' } = {}) {
   const { data } = await api.get('/overview', {
-    params: { exchange, limit, timeframe },
+    params: { exchange, market_type: marketType, limit, timeframe },
   });
   return data;
 }

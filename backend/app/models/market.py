@@ -5,6 +5,8 @@ from pydantic import BaseModel, Field
 
 ExchangeName = Literal["binance", "mexc", "auto"]
 TimeframeName = Literal["1D", "4H"]
+MarketTypeName = Literal["spot", "futures"]
+MarketTypeFilter = Literal["spot", "futures", "all"]
 PumpState = Literal["HIGH", "WATCHLIST", "IGNORE"]
 NarrativeMode = Literal["Smart Money", "Core Narratives", "All Market", "Microcaps (MEXC)"]
 
@@ -14,6 +16,7 @@ class PairItem(BaseModel):
     base_asset: str = Field(..., examples=["BTC"])
     quote_asset: str = Field(..., examples=["USDT"])
     supported_exchanges: list[Literal["binance", "mexc"]]
+    supported_market_types: list[MarketTypeName]
     narrative: NarrativeMode
     narrative_label: str
 
@@ -22,6 +25,7 @@ class PairListResponse(BaseModel):
     pairs: list[PairItem]
     total: int
     supported_timeframes: list[TimeframeName]
+    supported_market_types: list[MarketTypeName]
 
 
 class OhlcvCandle(BaseModel):
@@ -41,6 +45,7 @@ class OhlcvCandle(BaseModel):
 class OhlcvResponse(BaseModel):
     exchange: Literal["binance", "mexc"]
     symbol: str = Field(..., examples=["BTCUSDT"])
+    market_type: MarketTypeName
     timeframe: TimeframeName
     candles: list[OhlcvCandle]
     candle_count: int
@@ -49,6 +54,7 @@ class OhlcvResponse(BaseModel):
 class ScanResult(BaseModel):
     exchange: Literal["binance", "mexc"]
     symbol: str = Field(..., examples=["BTCUSDT"])
+    market_type: MarketTypeName
     narrative: NarrativeMode
     narrative_label: str
     timeframe: TimeframeName
@@ -58,6 +64,7 @@ class ScanResult(BaseModel):
     signal_strength: float = Field(..., ge=0, le=100, examples=[82.5])
     volume_score: float = Field(..., ge=0, le=100, examples=[76.2])
     momentum_score: float = Field(..., ge=0, le=100, examples=[84.1])
+    signal_label: str
     summary: str
     indicators: dict[str, float | None]
     score_breakdown: dict[str, int]
@@ -68,12 +75,14 @@ class TopOpportunity(BaseModel):
     rank: int = Field(..., ge=1)
     exchange: Literal["binance", "mexc"]
     symbol: str = Field(..., examples=["SOLUSDT"])
+    market_type: MarketTypeName
     narrative: NarrativeMode
     narrative_label: str
     timeframe: TimeframeName
     score: int = Field(..., ge=0, le=9)
     estado: PumpState
     opportunity_score: float = Field(..., ge=0, le=100, examples=[91.4])
+    signal_label: str
     setup: str
     confidence: str = Field(..., examples=["high"])
     indicators: dict[str, float | None]
@@ -113,6 +122,8 @@ class CacheInvalidateResponse(BaseModel):
 
 class ScoreChange(BaseModel):
     symbol: str
+    exchange: Literal["binance", "mexc"]
+    market_type: MarketTypeName
     previous_score: int
     current_score: int
     previous_estado: PumpState
@@ -124,5 +135,6 @@ class WebSocketSnapshot(BaseModel):
     generated_at: datetime
     timeframe: TimeframeName
     exchange: Literal["binance", "mexc", "auto"]
+    market_type: MarketTypeName
     top: list[TopOpportunity]
     score_changes: list[ScoreChange]

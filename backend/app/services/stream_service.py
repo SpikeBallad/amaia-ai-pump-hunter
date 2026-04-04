@@ -70,6 +70,7 @@ class MarketStreamService:
         overview = await get_market_overview(
             timeframe="4H",
             exchange="auto",
+            market_type="spot",
             limit=settings.ws_top_limit,
         )
         score_changes = self._extract_score_changes(overview.top)
@@ -78,6 +79,7 @@ class MarketStreamService:
             generated_at=overview.generated_at,
             timeframe="4H",
             exchange="auto",
+            market_type="spot",
             top=overview.top,
             score_changes=score_changes,
         )
@@ -85,19 +87,25 @@ class MarketStreamService:
     def _extract_score_changes(self, opportunities: list[TopOpportunity]) -> list[ScoreChange]:
         changes: list[ScoreChange] = []
         current_scores: dict[str, tuple[int, str]] = {
-            opportunity.symbol: (opportunity.score, opportunity.estado)
+            f"{opportunity.market_type}:{opportunity.exchange}:{opportunity.symbol}": (
+                opportunity.score,
+                opportunity.estado,
+            )
             for opportunity in opportunities
         }
 
-        for symbol, (current_score, current_estado) in current_scores.items():
-            previous = self._previous_scores.get(symbol)
+        for identifier, (current_score, current_estado) in current_scores.items():
+            previous = self._previous_scores.get(identifier)
             if previous is None:
                 continue
             previous_score, previous_estado = previous
             if previous_score != current_score or previous_estado != current_estado:
+                market_type, exchange, symbol = identifier.split(":", 2)
                 changes.append(
                     ScoreChange(
                         symbol=symbol,
+                        exchange=exchange,
+                        market_type=market_type,
                         previous_score=previous_score,
                         current_score=current_score,
                         previous_estado=previous_estado,

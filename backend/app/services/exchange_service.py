@@ -4,16 +4,21 @@ import httpx
 from fastapi import HTTPException
 
 from app.core.config import settings
-from app.models.market import OhlcvCandle, OhlcvResponse, TimeframeName
+from app.models.market import MarketTypeName, OhlcvCandle, OhlcvResponse, TimeframeName
 
 TIMEFRAME_MAP: dict[TimeframeName, str] = {
     "1D": "1d",
     "4H": "4h",
 }
 
-EXCHANGE_URLS = {
-    "binance": settings.binance_klines_url,
-    "mexc": settings.mexc_klines_url,
+EXCHANGE_URLS: dict[MarketTypeName, dict[str, str]] = {
+    "spot": {
+        "binance": settings.binance_klines_url,
+        "mexc": settings.mexc_klines_url,
+    },
+    "futures": {
+        "binance": settings.binance_futures_klines_url,
+    },
 }
 
 
@@ -49,7 +54,12 @@ def _normalize_candle(exchange: str, row: list) -> OhlcvCandle:
     )
 
 
-async def _request_klines(exchange: str, symbol: str, timeframe: TimeframeName) -> OhlcvResponse:
+async def _request_klines(
+    exchange: str,
+    symbol: str,
+    timeframe: TimeframeName,
+    market_type: MarketTypeName,
+) -> OhlcvResponse:
     params = {
         "symbol": symbol.upper(),
         "interval": TIMEFRAME_MAP[timeframe],
@@ -57,7 +67,7 @@ async def _request_klines(exchange: str, symbol: str, timeframe: TimeframeName) 
     }
 
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.get(EXCHANGE_URLS[exchange], params=params)
+        response = await client.get(EXCHANGE_URLS[market_type][exchange], params=params)
 
     if response.status_code >= 400:
         raise HTTPException(
@@ -80,22 +90,29 @@ async def _request_klines(exchange: str, symbol: str, timeframe: TimeframeName) 
     return OhlcvResponse(
         exchange=exchange,
         symbol=symbol.upper(),
+        market_type=market_type,
         timeframe=timeframe,
         candles=candles,
         candle_count=len(candles),
     )
 
 
-async def fetch_ohlcv(symbol: str, timeframe: TimeframeName, exchange: str = "auto") -> OhlcvResponse:
+async def fetch_ohlcv(
+    symbol: str,
+    timeframe: TimeframeName,
+    exchange: str = "auto",
+    market_type: MarketTypeName = "spot",
+) -> OhlcvResponse:
     requested_exchange = exchange.lower()
+    exchange_pool = EXCHANGE_URLS[market_type]
 
-    if requested_exchange in EXCHANGE_URLS:
-        return await _request_klines(requested_exchange, symbol, timeframe)
+    if requested_exchange in exchange_pool:
+        return await _request_klines(requested_exchange, symbol, timeframe, market_type)
 
     last_error: HTTPException | None = None
-    for candidate in ("binance", "mexc"):
+    for candidate in exchange_pool:
         try:
-            return await _request_klines(candidate, symbol, timeframe)
+            return await _request_klines(candidate, symbol, timeframe, market_type)
         except HTTPException as exc:
             last_error = exc
 

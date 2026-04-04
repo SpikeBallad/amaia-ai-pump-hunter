@@ -26,8 +26,8 @@ function HunterCatMark() {
 
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState('amaia-admin');
-  const [password, setPassword] = useState('AmaiaHunter2026!');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isPending, startTransition] = useTransition();
 
@@ -114,6 +114,7 @@ export default function LoginPage() {
               <input
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
+                placeholder="amaia-admin"
                 className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-cyan-400/40"
               />
             </label>
@@ -124,6 +125,7 @@ export default function LoginPage() {
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
+                placeholder="Enter your secure password"
                 className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-cyan-400/40"
               />
             </label>
@@ -140,9 +142,10 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-6 rounded-[28px] border border-white/10 bg-white/[0.04] p-5 text-sm text-slate-400">
-            <p className="font-medium text-white">Credenciales iniciales</p>
-            <p className="mt-2">Usuario: amaia-admin</p>
-            <p className="mt-1">Password: AmaiaHunter2026!</p>
+            <p className="font-medium text-white">Acceso protegido por entorno</p>
+            <p className="mt-2">
+              Usa las credenciales configuradas en variables de entorno. Evita mostrar usuarios o passwords en producción.
+            </p>
           </div>
         </section>
       </div>

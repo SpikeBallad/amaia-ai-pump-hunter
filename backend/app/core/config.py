@@ -21,6 +21,7 @@ class Settings(BaseModel):
         ],
     )
     binance_klines_url: str = os.getenv("AMAIA_BINANCE_KLINES_URL", "https://api.binance.com/api/v3/klines")
+    binance_futures_klines_url: str = os.getenv("AMAIA_BINANCE_FUTURES_KLINES_URL", "https://fapi.binance.com/fapi/v1/klines")
     mexc_klines_url: str = os.getenv("AMAIA_MEXC_KLINES_URL", "https://api.mexc.com/api/v3/klines")
     ohlcv_limit: int = int(os.getenv("AMAIA_OHLCV_LIMIT", "120"))
     max_scan_pairs: int = int(os.getenv("AMAIA_MAX_SCAN_PAIRS", "24"))
