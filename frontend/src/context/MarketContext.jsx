@@ -19,19 +19,35 @@ const RECONNECT_DELAY_MS = 5_000;
 
 const MarketContext = createContext(null);
 
+function getMarketBucket(marketType) {
+  return marketType?.endsWith('FUTURES') ? 'futures' : 'spot';
+}
+
 function mapScanToRow(scan) {
   return {
     id: `${scan.market_type}-${scan.exchange}-${scan.symbol}`,
     symbol: scan.symbol,
     exchange: scan.exchange,
     marketType: scan.market_type,
+    marketBucket: getMarketBucket(scan.market_type),
+    instrumentType: scan.instrument_type,
     narrative: scan.narrative,
     narrativeLabel: scan.narrative_label,
-    price: scan.indicators?.last_close ?? null,
+    price: scan.price ?? scan.indicators?.last_close ?? null,
     score: scan.score,
     estado: scan.estado,
-    volume: scan.indicators?.avg_volume_20 ?? null,
+    statusLabel: scan.status_label,
+    volume: scan.volume ?? scan.indicators?.avg_volume_20 ?? null,
     volatility: scan.indicators?.atr_pct ?? null,
+    atrRatio: scan.atr_ratio,
+    dumpPct: scan.dump_pct,
+    rangePct: scan.range_pct,
+    volumePattern: scan.volume_pattern,
+    explanation: scan.explanation,
+    change24h: scan.change_24h,
+    lowCap: scan.low_cap,
+    silentMarket: scan.silent_market,
+    isBreakingOut: scan.is_breaking_out,
     summary: scan.summary,
     signalLabel: scan.signal_label,
     signalStrength: scan.signal_strength,
@@ -48,13 +64,25 @@ function mergeTopRows(previousRows, topRows) {
       symbol: row.symbol,
       exchange: row.exchange,
       marketType: row.market_type,
+      marketBucket: getMarketBucket(row.market_type),
+      instrumentType: row.instrument_type,
       narrative: row.narrative,
       narrativeLabel: row.narrative_label,
-      price: mergedById.get(rowId)?.price ?? null,
+      price: row.price ?? mergedById.get(rowId)?.price ?? null,
       score: row.score,
       estado: row.estado,
-      volume: mergedById.get(rowId)?.volume ?? null,
+      statusLabel: row.status_label,
+      volume: row.volume ?? mergedById.get(rowId)?.volume ?? null,
       volatility: mergedById.get(rowId)?.volatility ?? null,
+      atrRatio: row.atr_ratio,
+      dumpPct: row.dump_pct,
+      rangePct: row.range_pct,
+      volumePattern: row.volume_pattern,
+      explanation: row.explanation,
+      change24h: row.change_24h,
+      lowCap: row.low_cap,
+      silentMarket: row.silent_market,
+      isBreakingOut: row.status_label === 'Breakout Starting',
       summary: row.setup,
       signalLabel: row.signal_label,
       signalStrength: row.opportunity_score,
@@ -66,12 +94,14 @@ function mergeTopRows(previousRows, topRows) {
 
 export function MarketProvider({ children }) {
   const [backendStatus, setBackendStatus] = useState('Conectando...');
+  const [moduleFilter, setModuleFilter] = useState('all');
   const [exchangeFilter, setExchangeFilter] = useState('all');
-  const [marketTypeFilter, setMarketTypeFilter] = useState('spot');
+  const [marketTypeFilter, setMarketTypeFilter] = useState('all');
   const [narrativeFilter, setNarrativeFilter] = useState('All Market');
   const [scoreFilter, setScoreFilter] = useState(4);
   const [rows, setRows] = useState([]);
   const [topRows, setTopRows] = useState([]);
+  const [watchlistRows, setWatchlistRows] = useState([]);
   const [scoreChanges, setScoreChanges] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -202,6 +232,7 @@ export function MarketProvider({ children }) {
         setBackendStatus(healthData.message);
         setRows(nextRows);
         setTopRows(overviewData.top ?? []);
+        setWatchlistRows(overviewData.watchlist ?? []);
         setLastUpdated(overviewData.generated_at ? new Date(overviewData.generated_at) : new Date());
         setCacheStats(cacheStatsData);
         setError('');
@@ -353,22 +384,33 @@ export function MarketProvider({ children }) {
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
       const exchangeMatches = exchangeFilter === 'all' || row.exchange === exchangeFilter;
-      const marketMatches = marketTypeFilter === 'all' || row.marketType === marketTypeFilter;
+      const marketMatches = marketTypeFilter === 'all' || row.marketBucket === marketTypeFilter;
       const narrativeMatches = narrativeFilter === 'All Market' || row.narrative === narrativeFilter;
       const scoreMatches = row.score >= scoreFilter;
-      return exchangeMatches && marketMatches && narrativeMatches && scoreMatches;
+      const moduleMatches =
+        moduleFilter === 'all' ||
+        (moduleFilter === 'spot' && row.marketBucket === 'spot') ||
+        (moduleFilter === 'futures' && row.marketBucket === 'futures') ||
+        (moduleFilter === 'watchlist' && row.score >= 8 && !row.isBreakingOut);
+      return exchangeMatches && marketMatches && narrativeMatches && scoreMatches && moduleMatches;
     });
-  }, [exchangeFilter, marketTypeFilter, narrativeFilter, rows, scoreFilter]);
+  }, [exchangeFilter, marketTypeFilter, moduleFilter, narrativeFilter, rows, scoreFilter]);
 
   const topPanelRows = useMemo(() => {
-    return topRows.filter((row) => {
+    const sourceRows = moduleFilter === 'watchlist' ? watchlistRows : topRows;
+    return sourceRows.filter((row) => {
       const exchangeMatches = exchangeFilter === 'all' || row.exchange === exchangeFilter;
-      const marketMatches = marketTypeFilter === 'all' || row.marketType === marketTypeFilter;
+      const marketMatches = marketTypeFilter === 'all' || getMarketBucket(row.market_type ?? row.marketType) === marketTypeFilter;
       const narrativeMatches = narrativeFilter === 'All Market' || row.narrative === narrativeFilter;
       const scoreMatches = row.score >= scoreFilter;
-      return exchangeMatches && marketMatches && narrativeMatches && scoreMatches;
+      const moduleMatches =
+        moduleFilter === 'all' ||
+        (moduleFilter === 'spot' && getMarketBucket(row.market_type ?? row.marketType) === 'spot') ||
+        (moduleFilter === 'futures' && getMarketBucket(row.market_type ?? row.marketType) === 'futures') ||
+        (moduleFilter === 'watchlist' && row.score >= 8);
+      return exchangeMatches && marketMatches && narrativeMatches && scoreMatches && moduleMatches;
     });
-  }, [exchangeFilter, marketTypeFilter, narrativeFilter, scoreFilter, topRows]);
+  }, [exchangeFilter, marketTypeFilter, moduleFilter, narrativeFilter, scoreFilter, topRows, watchlistRows]);
 
   const summary = useMemo(() => {
     const highCount = filteredRows.filter((row) => row.estado === 'HIGH').length;
@@ -382,14 +424,17 @@ export function MarketProvider({ children }) {
       watchlistCount,
       averageScore,
       visibleCount: filteredRows.length,
-      spotCount: filteredRows.filter((row) => row.marketType === 'spot').length,
-      futuresCount: filteredRows.filter((row) => row.marketType === 'futures').length,
+      spotCount: filteredRows.filter((row) => row.marketBucket === 'spot').length,
+      futuresCount: filteredRows.filter((row) => row.marketBucket === 'futures').length,
+      watchlistCountOnly: filteredRows.filter((row) => row.score >= 8 && !row.isBreakingOut).length,
     };
   }, [filteredRows]);
 
   const value = useMemo(
     () => ({
       backendStatus,
+      moduleFilter,
+      setModuleFilter,
       exchangeFilter,
       setExchangeFilter,
       marketTypeFilter,
@@ -405,6 +450,7 @@ export function MarketProvider({ children }) {
       rows,
       filteredRows,
       topRows,
+      watchlistRows,
       topPanelRows,
       scoreChanges,
       alertLog,
@@ -420,6 +466,7 @@ export function MarketProvider({ children }) {
     }),
     [
       backendStatus,
+      moduleFilter,
       exchangeFilter,
       marketTypeFilter,
       narrativeFilter,
@@ -429,6 +476,7 @@ export function MarketProvider({ children }) {
       rows,
       filteredRows,
       topRows,
+      watchlistRows,
       topPanelRows,
       scoreChanges,
       alertLog,

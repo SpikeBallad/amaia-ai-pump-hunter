@@ -3,6 +3,7 @@
 import { useMemo, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
+import AmaiaCopilotPanel from '@/src/components/AmaiaCopilotPanel';
 import BrandMark from '@/src/components/BrandMark';
 import { useMarket } from '@/src/context/MarketContext';
 
@@ -22,6 +23,13 @@ const marketTypeOptions = [
   { value: 'all', label: 'All Markets' },
   { value: 'spot', label: 'Spot' },
   { value: 'futures', label: 'Futures' },
+];
+
+const moduleOptions = [
+  { value: 'all', label: 'All Setups' },
+  { value: 'spot', label: 'Spot Opportunities' },
+  { value: 'futures', label: 'Futures Setups' },
+  { value: 'watchlist', label: 'Pre-Pump Watchlist' },
 ];
 
 const narrativeOptions = [
@@ -70,7 +78,8 @@ function getStateClass(state) {
 }
 
 function getMarketTypeClass(marketType) {
-  return marketPillStyles[marketType] ?? 'border-white/10 bg-white/[0.04] text-slate-300';
+  const key = marketType?.endsWith?.('FUTURES') || marketType === 'futures' ? 'futures' : 'spot';
+  return marketPillStyles[key] ?? 'border-white/10 bg-white/[0.04] text-slate-300';
 }
 
 function getSocketClass(status) {
@@ -122,6 +131,8 @@ export default function DashboardPage() {
   const [isPending, startTransition] = useTransition();
   const {
     backendStatus,
+    moduleFilter,
+    setModuleFilter,
     exchangeFilter,
     setExchangeFilter,
     marketTypeFilter,
@@ -136,6 +147,7 @@ export default function DashboardPage() {
     invalidateMarketCache,
     filteredRows,
     topPanelRows,
+    watchlistRows,
     scoreChanges,
     alertLog,
     activeAlert,
@@ -159,7 +171,14 @@ export default function DashboardPage() {
 
   const strongestRow = filteredRows[0] ?? topPanelRows[0] ?? null;
   const averageScore = summary.averageScore ? summary.averageScore.toFixed(1) : '0.0';
-  const marketModeLabel = marketTypeFilter === 'all' ? 'Cross Market' : marketTypeFilter === 'futures' ? 'Futures Radar' : 'Spot Radar';
+  const marketModeLabel =
+    moduleFilter === 'watchlist'
+      ? 'Pre-Pump Watchlist'
+      : moduleFilter === 'futures'
+        ? 'Futures Radar'
+        : moduleFilter === 'spot'
+          ? 'Spot Radar'
+          : 'Cross Market';
 
   function handleLogout() {
     startTransition(async () => {
@@ -245,13 +264,13 @@ export default function DashboardPage() {
                       {strongestRow ? (
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${getMarketTypeClass(strongestRow.marketType)}`}>
-                            {strongestRow.marketType.toUpperCase()}
+                            {(strongestRow.marketType ?? strongestRow.market_type ?? '--').toUpperCase()}
                           </span>
                           <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-slate-300">
                             {strongestRow.exchange.toUpperCase()}
                           </span>
                           <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
-                            {strongestRow.signalLabel}
+                            {strongestRow.signalLabel ?? strongestRow.signal_label}
                           </span>
                         </div>
                       ) : null}
@@ -268,16 +287,16 @@ export default function DashboardPage() {
                       <p className="mt-2 text-lg font-semibold text-white">{strongestRow ? formatPrice(strongestRow.price) : '--'}</p>
                     </div>
                     <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-                      <p className="text-xs uppercase tracking-[0.26em] text-slate-500">Volume</p>
-                      <p className="mt-2 text-lg font-semibold text-white">{strongestRow ? formatVolume(strongestRow.volume) : '--'}</p>
+                      <p className="text-xs uppercase tracking-[0.26em] text-slate-500">Dump %</p>
+                      <p className="mt-2 text-lg font-semibold text-white">{strongestRow ? formatPercent(strongestRow.dumpPct ?? strongestRow.dump_pct) : '--'}</p>
                     </div>
                     <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-                      <p className="text-xs uppercase tracking-[0.26em] text-slate-500">Volatility</p>
-                      <p className="mt-2 text-lg font-semibold text-white">{strongestRow ? formatPercent(strongestRow.volatility) : '--'}</p>
+                      <p className="text-xs uppercase tracking-[0.26em] text-slate-500">Range %</p>
+                      <p className="mt-2 text-lg font-semibold text-white">{strongestRow ? formatPercent(strongestRow.rangePct ?? strongestRow.range_pct) : '--'}</p>
                     </div>
                   </div>
                   <p className="mt-5 text-sm leading-7 text-slate-400">
-                    {strongestRow?.summary ?? 'El scanner destacara aqui el mejor setup disponible segun score y narrativa.'}
+                    {strongestRow?.explanation ?? strongestRow?.summary ?? strongestRow?.setup ?? 'El scanner destacara aqui el mejor setup disponible segun score y narrativa.'}
                   </p>
                 </div>
 
@@ -297,6 +316,25 @@ export default function DashboardPage() {
                   </div>
 
                   <div className="mt-5 grid gap-4">
+                    <div className="grid gap-2">
+                      <span className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Modules</span>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {moduleOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setModuleFilter(option.value)}
+                            className={`rounded-2xl border px-4 py-3 text-sm text-left transition ${
+                              moduleFilter === option.value
+                                ? 'border-cyan-400/30 bg-cyan-400/12 text-cyan-100'
+                                : 'border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/20'
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <FilterSelect label="Exchange" value={exchangeFilter} onChange={(event) => setExchangeFilter(event.target.value)} options={exchangeOptions} />
                     <FilterSelect label="Market Type" value={marketTypeFilter} onChange={(event) => setMarketTypeFilter(event.target.value)} options={marketTypeOptions} />
                     <FilterSelect label="Narrative" value={narrativeFilter} onChange={(event) => setNarrativeFilter(event.target.value)} options={narrativeOptions} />
@@ -368,18 +406,33 @@ export default function DashboardPage() {
                         <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
                           {row.signal_label}
                         </span>
+                        <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-slate-300">
+                          {row.status_label}
+                        </span>
                         <span className="text-sm text-slate-400">{row.exchange.toUpperCase()} · {row.narrative_label ?? row.narrative}</span>
                       </div>
                     </div>
                     <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${getStateClass(row.estado)}`}>{row.estado}</span>
                   </div>
-                  <div className="mt-4 flex items-end justify-between">
+                  <div className="mt-4 grid gap-3 sm:grid-cols-4">
                     <div>
                       <p className="text-xs uppercase tracking-[0.26em] text-slate-500">Score</p>
                       <p className="mt-2 text-3xl font-semibold text-white">{row.score}</p>
                     </div>
-                    <p className="max-w-[14rem] text-right text-sm leading-6 text-slate-400">{row.setup}</p>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.26em] text-slate-500">Dump</p>
+                      <p className="mt-2 text-sm text-slate-200">{formatPercent(row.dump_pct)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.26em] text-slate-500">Range</p>
+                      <p className="mt-2 text-sm text-slate-200">{formatPercent(row.range_pct)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.26em] text-slate-500">ATR Ratio</p>
+                      <p className="mt-2 text-sm text-slate-200">{typeof row.atr_ratio === 'number' ? row.atr_ratio.toFixed(4) : '--'}</p>
+                    </div>
                   </div>
+                  <p className="mt-4 text-sm leading-6 text-slate-400">{row.setup}</p>
                 </div>
               ))}
               {!loading && topPanelRows.length === 0 ? (
@@ -424,11 +477,13 @@ export default function DashboardPage() {
                   <thead className="bg-slate-950/80">
                     <tr className="text-[11px] uppercase tracking-[0.28em] text-slate-500">
                       <th className="px-5 py-4 font-medium">Pair</th>
-                      <th className="px-5 py-4 font-medium">Price</th>
+                      <th className="px-5 py-4 font-medium">Market</th>
                       <th className="px-5 py-4 font-medium">Score</th>
-                      <th className="px-5 py-4 font-medium">State</th>
-                      <th className="px-5 py-4 font-medium">Volume</th>
-                      <th className="px-5 py-4 font-medium">Volatility</th>
+                      <th className="px-5 py-4 font-medium">Dump</th>
+                      <th className="px-5 py-4 font-medium">Range</th>
+                      <th className="px-5 py-4 font-medium">ATR Ratio</th>
+                      <th className="px-5 py-4 font-medium">Volume Pattern</th>
+                      <th className="px-5 py-4 font-medium">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/6 bg-[rgba(4,8,22,0.62)]">
@@ -450,18 +505,28 @@ export default function DashboardPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-5 py-4 text-sm text-slate-200">{formatPrice(row.price)}</td>
-                        <td className="px-5 py-4 font-mono text-lg text-white">{row.score}</td>
-                        <td className="px-5 py-4">
-                          <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${getStateClass(row.estado)}`}>{row.estado}</span>
+                        <td className="px-5 py-4 text-sm text-slate-200">
+                          <div className="flex flex-col gap-1">
+                            <span>{row.instrumentType}</span>
+                            <span className="text-xs text-slate-500">{formatPrice(row.price)}</span>
+                          </div>
                         </td>
-                        <td className="px-5 py-4 text-sm text-slate-200">{formatVolume(row.volume)}</td>
-                        <td className="px-5 py-4 text-sm text-slate-200">{formatPercent(row.volatility)}</td>
+                        <td className="px-5 py-4 font-mono text-lg text-white">{row.score}</td>
+                        <td className="px-5 py-4 text-sm text-slate-200">{formatPercent(row.dumpPct)}</td>
+                        <td className="px-5 py-4 text-sm text-slate-200">{formatPercent(row.rangePct)}</td>
+                        <td className="px-5 py-4 text-sm text-slate-200">{typeof row.atrRatio === 'number' ? row.atrRatio.toFixed(4) : '--'}</td>
+                        <td className="px-5 py-4 text-sm text-slate-200">{row.volumePattern}</td>
+                        <td className="px-5 py-4">
+                          <div className="flex flex-col gap-2">
+                            <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${getStateClass(row.estado)}`}>{row.estado}</span>
+                            <span className="text-xs text-slate-500">{row.statusLabel}</span>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                     {!loading && filteredRows.length === 0 ? (
                       <tr>
-                        <td colSpan="6" className="px-5 py-8 text-center text-sm text-slate-400">
+                        <td colSpan="8" className="px-5 py-8 text-center text-sm text-slate-400">
                           No hay filas con los filtros seleccionados.
                         </td>
                       </tr>
@@ -588,8 +653,39 @@ export default function DashboardPage() {
                 ) : null}
               </div>
             </div>
+            <div className="glass-panel rounded-[36px] p-6">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Watchlist Module</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">Pre-Pump Candidates</h2>
+              </div>
+              <div className="mt-5 space-y-3">
+                {watchlistRows.slice(0, 4).map((row, index) => (
+                  <div key={`${row.market_type}-${row.exchange}-${row.symbol}-${index}`} className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-white">{row.symbol}</p>
+                        <p className="mt-1 text-xs uppercase tracking-[0.22em] text-slate-500">
+                          {row.exchange} · {row.market_type}
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-300">
+                        Score {row.score}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-slate-400">{row.setup}</p>
+                  </div>
+                ))}
+                {watchlistRows.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-5 text-sm text-slate-400">
+                    No hay activos en pre-pump watchlist ahora mismo.
+                  </div>
+                ) : null}
+              </div>
+            </div>
           </div>
         </section>
+
+        <AmaiaCopilotPanel />
 
         {activeAlert ? (
           <div className="fixed bottom-6 right-6 z-50 w-[min(92vw,420px)] rounded-[28px] border border-emerald-400/20 bg-slate-950/92 p-5 shadow-[0_24px_90px_rgba(16,185,129,0.18)] backdrop-blur">

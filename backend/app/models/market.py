@@ -4,10 +4,14 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 ExchangeName = Literal["binance", "mexc", "auto"]
+ResolvedExchangeName = Literal["binance", "mexc"]
 TimeframeName = Literal["1D", "4H"]
-MarketTypeName = Literal["spot", "futures"]
+MarketRequestType = Literal["spot", "futures"]
 MarketTypeFilter = Literal["spot", "futures", "all"]
+MarketTypeName = Literal["BINANCE_SPOT", "BINANCE_FUTURES", "MEXC_SPOT", "MEXC_FUTURES"]
+InstrumentType = Literal["SPOT", "PERPETUAL"]
 PumpState = Literal["HIGH", "WATCHLIST", "IGNORE"]
+SetupStatus = Literal["Accumulation", "Pre-Breakout", "Breakout Starting"]
 NarrativeMode = Literal["Smart Money", "Core Narratives", "All Market", "Microcaps (MEXC)"]
 
 
@@ -15,8 +19,9 @@ class PairItem(BaseModel):
     symbol: str = Field(..., examples=["BTCUSDT"])
     base_asset: str = Field(..., examples=["BTC"])
     quote_asset: str = Field(..., examples=["USDT"])
-    supported_exchanges: list[Literal["binance", "mexc"]]
-    supported_market_types: list[MarketTypeName]
+    supported_exchanges: list[ResolvedExchangeName]
+    supported_markets: list[MarketTypeName]
+    supported_instruments: list[InstrumentType]
     narrative: NarrativeMode
     narrative_label: str
 
@@ -25,7 +30,7 @@ class PairListResponse(BaseModel):
     pairs: list[PairItem]
     total: int
     supported_timeframes: list[TimeframeName]
-    supported_market_types: list[MarketTypeName]
+    supported_markets: list[MarketTypeName]
 
 
 class OhlcvCandle(BaseModel):
@@ -43,29 +48,46 @@ class OhlcvCandle(BaseModel):
 
 
 class OhlcvResponse(BaseModel):
-    exchange: Literal["binance", "mexc"]
+    exchange: ResolvedExchangeName
     symbol: str = Field(..., examples=["BTCUSDT"])
     market_type: MarketTypeName
+    instrument_type: InstrumentType
     timeframe: TimeframeName
     candles: list[OhlcvCandle]
     candle_count: int
 
 
 class ScanResult(BaseModel):
-    exchange: Literal["binance", "mexc"]
+    exchange: ResolvedExchangeName
     symbol: str = Field(..., examples=["BTCUSDT"])
     market_type: MarketTypeName
+    instrument_type: InstrumentType
     narrative: NarrativeMode
     narrative_label: str
     timeframe: TimeframeName
-    score: int = Field(..., ge=0, le=9)
+    score: int = Field(..., ge=0, le=10)
     estado: PumpState
+    status_label: SetupStatus
     trend: str = Field(..., examples=["bullish"])
     signal_strength: float = Field(..., ge=0, le=100, examples=[82.5])
     volume_score: float = Field(..., ge=0, le=100, examples=[76.2])
     momentum_score: float = Field(..., ge=0, le=100, examples=[84.1])
     signal_label: str
     summary: str
+    explanation: str
+    price: float
+    volume: float
+    change_24h: float
+    dump_pct: float
+    range_pct: float
+    atr_ratio: float
+    volume_pattern: str
+    liquidity_trap: bool
+    ema_flattened: bool
+    low_cap: bool
+    silent_market: bool
+    is_breaking_out: bool
+    excluded_reason: str | None = None
     indicators: dict[str, float | None]
     score_breakdown: dict[str, int]
     ohlcv: OhlcvResponse
@@ -73,30 +95,44 @@ class ScanResult(BaseModel):
 
 class TopOpportunity(BaseModel):
     rank: int = Field(..., ge=1)
-    exchange: Literal["binance", "mexc"]
+    exchange: ResolvedExchangeName
     symbol: str = Field(..., examples=["SOLUSDT"])
     market_type: MarketTypeName
+    instrument_type: InstrumentType
     narrative: NarrativeMode
     narrative_label: str
     timeframe: TimeframeName
-    score: int = Field(..., ge=0, le=9)
+    score: int = Field(..., ge=0, le=10)
     estado: PumpState
+    status_label: SetupStatus
     opportunity_score: float = Field(..., ge=0, le=100, examples=[91.4])
     signal_label: str
     setup: str
+    explanation: str
     confidence: str = Field(..., examples=["high"])
+    price: float
+    volume: float
+    change_24h: float
+    dump_pct: float
+    range_pct: float
+    atr_ratio: float
+    volume_pattern: str
+    low_cap: bool
+    silent_market: bool
     indicators: dict[str, float | None]
     score_breakdown: dict[str, int]
 
 
 class TopOpportunitiesResponse(BaseModel):
     opportunities: list[TopOpportunity]
+    watchlist: list[TopOpportunity]
     total: int
 
 
 class MarketOverviewResponse(BaseModel):
     scans: list[ScanResult]
     top: list[TopOpportunity]
+    watchlist: list[TopOpportunity]
     total: int
     generated_at: datetime
     cache_ttl_seconds: int
@@ -122,8 +158,9 @@ class CacheInvalidateResponse(BaseModel):
 
 class ScoreChange(BaseModel):
     symbol: str
-    exchange: Literal["binance", "mexc"]
+    exchange: ResolvedExchangeName
     market_type: MarketTypeName
+    instrument_type: InstrumentType
     previous_score: int
     current_score: int
     previous_estado: PumpState
@@ -134,7 +171,7 @@ class WebSocketSnapshot(BaseModel):
     type: Literal["snapshot"]
     generated_at: datetime
     timeframe: TimeframeName
-    exchange: Literal["binance", "mexc", "auto"]
-    market_type: MarketTypeName
+    exchange: ExchangeName
+    market_type: MarketRequestType
     top: list[TopOpportunity]
     score_changes: list[ScoreChange]

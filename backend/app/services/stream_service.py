@@ -106,6 +106,7 @@ class MarketStreamService:
                         symbol=symbol,
                         exchange=exchange,
                         market_type=market_type,
+                        instrument_type="PERPETUAL" if market_type.endswith("FUTURES") else "SPOT",
                         previous_score=previous_score,
                         current_score=current_score,
                         previous_estado=previous_estado,
