@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import LoginPage from '@/src/components/LoginPage';
 
 export const metadata = {
-  title: 'Login | Amaia AI Pump Hunter',
+  title: 'Login | AMAIA AI PUMP HUNTER PRO',
 };
 
 export default function Page() {

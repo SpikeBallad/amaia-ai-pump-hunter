@@ -1,8 +1,8 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Amaia AI Pump Hunter',
-  description: 'Smart money scanner with real-time compression tracking, narratives, and market alerts.',
+  title: 'AMAIA AI PUMP HUNTER PRO',
+  description: 'Cross-exchange accumulation intelligence for spot and futures crypto setups.',
 };
 
 export default function RootLayout({ children }) {

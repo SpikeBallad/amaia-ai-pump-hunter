@@ -3,6 +3,7 @@
 import { useMemo, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
+import BrandMark from '@/src/components/BrandMark';
 import { useMarket } from '@/src/context/MarketContext';
 
 const stateStyles = {
@@ -85,27 +86,6 @@ function getHitRateClass(rate) {
   if (rate >= 70) return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300';
   if (rate >= 40) return 'border-amber-500/20 bg-amber-500/10 text-amber-300';
   return 'border-rose-500/20 bg-rose-500/10 text-rose-300';
-}
-
-function HunterCatMark() {
-  return (
-    <div className="relative isolate h-20 w-20 overflow-hidden rounded-[28px] border border-cyan-400/20 bg-slate-950/80 shadow-glow">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_16%,rgba(34,211,238,0.18),transparent_46%),linear-gradient(180deg,rgba(8,15,33,0.96),rgba(5,8,22,0.92))]" />
-      <svg viewBox="0 0 120 120" className="absolute inset-0 h-full w-full">
-        <defs>
-          <linearGradient id="catStrokeDashboard" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#67e8f9" />
-            <stop offset="100%" stopColor="#34d399" />
-          </linearGradient>
-        </defs>
-        <path d="M28 42 40 22l16 20m24 0 16-20 12 20" fill="none" stroke="url(#catStrokeDashboard)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M25 49c0-8 7-15 15-15h40c8 0 15 7 15 15v24c0 12-10 22-22 22H47C35 95 25 85 25 73Z" fill="rgba(6,11,25,0.65)" stroke="url(#catStrokeDashboard)" strokeWidth="4" />
-        <path d="M45 63h12m18 0h-12" stroke="#f8fafc" strokeWidth="4" strokeLinecap="round" />
-        <path d="M50 75c5 5 15 5 20 0" fill="none" stroke="#22d3ee" strokeWidth="4" strokeLinecap="round" />
-        <path d="M40 51h12l-7 10H34Zm46 0h-12l7 10h11Z" fill="#fbbf24" opacity="0.95" />
-      </svg>
-    </div>
-  );
 }
 
 function FilterSelect({ label, value, onChange, options }) {
@@ -198,18 +178,18 @@ export default function DashboardPage() {
             <div className="relative flex flex-col gap-8">
               <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
                 <div className="flex items-start gap-4">
-                  <HunterCatMark />
+                  <BrandMark size="md" />
                   <div className="space-y-4">
                     <span className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.32em] text-cyan-300">
-                      Amaia AI Pump Hunter
+                      AMAIA AI PUMP HUNTER PRO
                     </span>
                     <div>
                       <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-                        Tactical crypto scanner with hunter-grade execution visuals.
+                        Robotic hunter dashboard for cross-exchange pre-pump intelligence.
                       </h1>
                       <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-400 sm:text-base">
-                        Detecta compresiones, narrativas calientes y posibles breakouts con una experiencia moderna inspirada
-                        en terminales de trading premium y vigilancia cuantitativa.
+                        Detecta acumulacion, trampas de liquidez y estructuras de explosion en spot y futures con una interfaz
+                        premium inspirada en terminales de trading de alta gama.
                       </p>
                     </div>
                   </div>

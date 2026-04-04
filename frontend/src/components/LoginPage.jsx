@@ -3,26 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
-function HunterCatMark() {
-  return (
-    <div className="relative isolate h-24 w-24 overflow-hidden rounded-[32px] border border-cyan-400/20 bg-slate-950/80 shadow-glow">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_16%,rgba(34,211,238,0.18),transparent_46%),linear-gradient(180deg,rgba(8,15,33,0.96),rgba(5,8,22,0.92))]" />
-      <svg viewBox="0 0 120 120" className="absolute inset-0 h-full w-full">
-        <defs>
-          <linearGradient id="catStrokeLogin" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#67e8f9" />
-            <stop offset="100%" stopColor="#34d399" />
-          </linearGradient>
-        </defs>
-        <path d="M28 42 40 22l16 20m24 0 16-20 12 20" fill="none" stroke="url(#catStrokeLogin)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M25 49c0-8 7-15 15-15h40c8 0 15 7 15 15v24c0 12-10 22-22 22H47C35 95 25 85 25 73Z" fill="rgba(6,11,25,0.65)" stroke="url(#catStrokeLogin)" strokeWidth="4" />
-        <path d="M45 63h12m18 0h-12" stroke="#f8fafc" strokeWidth="4" strokeLinecap="round" />
-        <path d="M50 75c5 5 15 5 20 0" fill="none" stroke="#22d3ee" strokeWidth="4" strokeLinecap="round" />
-        <path d="M40 51h12l-7 10H34Zm46 0h-12l7 10h11Z" fill="#fbbf24" opacity="0.95" />
-      </svg>
-    </div>
-  );
-}
+import BrandMark from '@/src/components/BrandMark';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -66,17 +47,17 @@ export default function LoginPage() {
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_34%),radial-gradient(circle_at_80%_15%,rgba(52,211,153,0.1),transparent_20%)]" />
           <div className="relative flex h-full flex-col justify-between gap-8">
             <div className="flex items-start gap-4">
-              <HunterCatMark />
+              <BrandMark size="lg" />
               <div>
                 <span className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.32em] text-cyan-300">
-                  Secure Trading Intelligence
+                  Robotic Hunter Intelligence
                 </span>
                 <h1 className="mt-4 text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-                  Amaia AI Pump Hunter
+                  AMAIA AI PUMP HUNTER PRO
                 </h1>
                 <p className="mt-4 max-w-xl text-sm leading-7 text-slate-400 sm:text-base">
-                  Dashboard premium para vigilancia de compresiones, narrativas y oportunidades de ruptura con una identidad
-                  visual de alta calidad estilo terminal de trading futurista.
+                  Plataforma premium para detectar acumulacion, pre-breakout y setups de explosion en spot y futures con un
+                  gato hunter robotico como identidad central.
                 </p>
               </div>
             </div>
@@ -84,11 +65,11 @@ export default function LoginPage() {
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5">
                 <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Realtime</p>
-                <p className="mt-3 text-lg font-semibold text-white">REST + WebSocket</p>
+                <p className="mt-3 text-lg font-semibold text-white">REST + Realtime</p>
               </div>
               <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5">
                 <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Market Lens</p>
-                <p className="mt-3 text-lg font-semibold text-white">Smart Money</p>
+                <p className="mt-3 text-lg font-semibold text-white">Spot + Futures</p>
               </div>
               <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5">
                 <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Deployment</p>
@@ -101,10 +82,10 @@ export default function LoginPage() {
         <section className="glass-panel rounded-[36px] p-8">
           <div className="max-w-md">
             <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Access Control</p>
-            <h2 className="mt-3 text-3xl font-semibold text-white">Log in to the command center</h2>
+            <h2 className="mt-3 text-3xl font-semibold text-white">Log in to the hunter command center</h2>
             <p className="mt-3 text-sm leading-7 text-slate-400">
-              He dejado credenciales iniciales para demo privada. En producción puedes cambiarlas con variables de entorno
-              sin tocar el código.
+              Acceso privado para la consola principal de AMAIA AI PUMP HUNTER PRO. Gestiona las credenciales desde variables
+              de entorno sin tocar el codigo.
             </p>
           </div>
 

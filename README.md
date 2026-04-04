@@ -1,4 +1,4 @@
-# Amaia AI Pump Hunter
+# AMAIA AI PUMP HUNTER PRO
 
 Stack serio para monitorizar oportunidades de mercado con narrativa, scoring y alertas.
 

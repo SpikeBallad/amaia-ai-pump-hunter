@@ -10,7 +10,7 @@ def _split_csv_env(value: str | None, fallback: list[str]) -> list[str]:
 
 
 class Settings(BaseModel):
-    app_name: str = os.getenv("AMAIA_APP_NAME", "Amaia AI Pump Hunter API")
+    app_name: str = os.getenv("AMAIA_APP_NAME", "AMAIA AI PUMP HUNTER PRO API")
     allowed_origins: list[str] = _split_csv_env(
         os.getenv("AMAIA_ALLOWED_ORIGINS"),
         [
