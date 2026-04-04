@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 import AmaiaCopilotPanel from '@/src/components/AmaiaCopilotPanel';
@@ -43,6 +43,8 @@ const marketPillStyles = {
   spot: 'border-cyan-500/20 bg-cyan-500/10 text-cyan-300',
   futures: 'border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-300',
 };
+
+const chartRangeOptions = ['1D', '1W', '1M'];
 
 function formatPrice(value) {
   if (typeof value !== 'number') return '--';
@@ -142,9 +144,38 @@ function buildSparklinePath(candles) {
     .join(' ');
 }
 
+function getTradingViewLink(row) {
+  if (!row?.symbol) return 'https://www.tradingview.com/';
+  if (row.exchange === 'binance') {
+    return `https://www.tradingview.com/chart/?symbol=BINANCE:${row.marketBucket === 'futures' ? `${row.symbol}.P` : row.symbol}`;
+  }
+  return `https://www.tradingview.com/chart/?symbol=MEXC:${row.symbol}`;
+}
+
+function detectSession(dateValue) {
+  const hour = dateValue.getHours();
+  if (hour >= 1 && hour < 9) return 'Asia Session';
+  if (hour >= 9 && hour < 14) return 'London Session';
+  if (hour >= 14 && hour < 22) return 'New York Session';
+  return 'After Hours';
+}
+
+function sliceCandlesForRange(candles, range) {
+  if (!candles?.length) return [];
+  if (range === '1D') return candles.slice(-6);
+  if (range === '1W') return candles.slice(-42);
+  return candles.slice(-120);
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [locale, setLocale] = useState('en');
+  const [theme, setTheme] = useState('dark');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedSymbol, setSelectedSymbol] = useState('');
+  const [chartRange, setChartRange] = useState('1W');
+  const [sessionNow, setSessionNow] = useState(() => new Date());
   const {
     backendStatus,
     moduleFilter,
@@ -161,6 +192,7 @@ export default function DashboardPage() {
     setSoundEnabled,
     cacheStats,
     invalidateMarketCache,
+    rows,
     filteredRows,
     topPanelRows,
     watchlistRows,
@@ -177,6 +209,51 @@ export default function DashboardPage() {
     refreshMarketData,
   } = useMarket();
 
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setSessionNow(new Date());
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (selectedSymbol && !rows.some((row) => row.symbol === selectedSymbol)) {
+      setSelectedSymbol('');
+    }
+  }, [rows, selectedSymbol]);
+
+  const t = locale === 'es'
+    ? {
+        search: 'Buscar activo',
+        searchPlaceholder: 'BTC, ETH, SOL, XRP...',
+        assetView: 'Vista de Activo',
+        chartRange: 'Rango',
+        openTv: 'Abrir TradingView',
+        language: 'Idioma',
+        theme: 'Tema',
+        light: 'Claro',
+        dark: 'Oscuro',
+        activeClock: 'Sesión Activa',
+        date: 'Fecha',
+        day: 'Día',
+        time: 'Hora',
+      }
+    : {
+        search: 'Search Asset',
+        searchPlaceholder: 'BTC, ETH, SOL, XRP...',
+        assetView: 'Asset View',
+        chartRange: 'Range',
+        openTv: 'Open TradingView',
+        language: 'Language',
+        theme: 'Theme',
+        light: 'Light',
+        dark: 'Dark',
+        activeClock: 'Active Session',
+        date: 'Date',
+        day: 'Day',
+        time: 'Time',
+      };
+
   const socketLabel = useMemo(() => {
     if (socketStatus === 'disabled') return 'REST only';
     if (socketStatus === 'live') return 'Live feed';
@@ -185,9 +262,23 @@ export default function DashboardPage() {
     return 'Connecting';
   }, [socketStatus]);
 
-  const strongestRow = filteredRows[0] ?? topPanelRows[0] ?? null;
+  const searchableRows = useMemo(() => {
+    if (!searchTerm.trim()) return rows;
+    const query = searchTerm.trim().toLowerCase();
+    return rows.filter((row) => row.symbol.toLowerCase().includes(query) || row.narrativeLabel?.toLowerCase().includes(query));
+  }, [rows, searchTerm]);
+
+  const selectedRow = useMemo(() => {
+    if (selectedSymbol) {
+      return rows.find((row) => row.symbol === selectedSymbol) ?? null;
+    }
+    return searchableRows[0] ?? topPanelRows[0] ?? null;
+  }, [rows, searchableRows, selectedSymbol, topPanelRows]);
+
+  const strongestRow = selectedRow;
   const averageScore = summary.averageScore ? summary.averageScore.toFixed(1) : '0.0';
-  const sparklinePath = useMemo(() => buildSparklinePath(strongestRow?.candles ?? []), [strongestRow]);
+  const chartCandles = useMemo(() => sliceCandlesForRange(strongestRow?.candles ?? [], chartRange), [chartRange, strongestRow]);
+  const sparklinePath = useMemo(() => buildSparklinePath(chartCandles), [chartCandles]);
   const silentRows = useMemo(() => filteredRows.filter((row) => row.silentMarket).slice(0, 5), [filteredRows]);
   const spikeRows = useMemo(
     () => filteredRows.filter((row) => (row.volumePattern ?? '').toLowerCase().includes('spike')).slice(0, 5),
@@ -202,6 +293,32 @@ export default function DashboardPage() {
           ? 'Spot Radar'
           : 'Cross Market';
 
+  const formattedDate = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale === 'es' ? 'es-ES' : 'en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }).format(sessionNow),
+    [locale, sessionNow]
+  );
+  const formattedDay = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale === 'es' ? 'es-ES' : 'en-US', {
+        weekday: 'long',
+      }).format(sessionNow),
+    [locale, sessionNow]
+  );
+  const formattedClock = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale === 'es' ? 'es-ES' : 'en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).format(sessionNow),
+    [locale, sessionNow]
+  );
+
   function handleLogout() {
     startTransition(async () => {
       await fetch('/api/auth/logout', { method: 'POST' });
@@ -211,7 +328,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="min-h-screen px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
+    <main className={`min-h-screen px-4 py-6 text-slate-100 sm:px-6 lg:px-8 ${theme === 'light' ? 'theme-light' : 'theme-dark'}`}>
       <div className="mx-auto flex max-w-[1520px] flex-col gap-6">
         <section className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
           <div className="glass-panel relative overflow-hidden rounded-[36px] p-6 sm:p-8">
@@ -237,6 +354,20 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="flex flex-wrap items-start gap-3">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-200">
+                    <p className="text-[11px] uppercase tracking-[0.28em] text-current/70">{t.language}</p>
+                    <div className="mt-2 flex gap-2">
+                      <button type="button" onClick={() => setLocale('en')} className={`rounded-full px-3 py-1 text-xs ${locale === 'en' ? 'bg-cyan-400/20 text-cyan-200' : 'bg-white/[0.05] text-slate-300'}`}>EN</button>
+                      <button type="button" onClick={() => setLocale('es')} className={`rounded-full px-3 py-1 text-xs ${locale === 'es' ? 'bg-cyan-400/20 text-cyan-200' : 'bg-white/[0.05] text-slate-300'}`}>ES</button>
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-200">
+                    <p className="text-[11px] uppercase tracking-[0.28em] text-current/70">{t.theme}</p>
+                    <div className="mt-2 flex gap-2">
+                      <button type="button" onClick={() => setTheme('dark')} className={`rounded-full px-3 py-1 text-xs ${theme === 'dark' ? 'bg-cyan-400/20 text-cyan-200' : 'bg-white/[0.05] text-slate-300'}`}>{t.dark}</button>
+                      <button type="button" onClick={() => setTheme('light')} className={`rounded-full px-3 py-1 text-xs ${theme === 'light' ? 'bg-cyan-400/20 text-cyan-200' : 'bg-white/[0.05] text-slate-300'}`}>{t.light}</button>
+                    </div>
+                  </div>
                   <div className={`rounded-2xl border px-4 py-3 text-sm ${getSocketClass(socketStatus)}`}>
                     <p className="text-[11px] uppercase tracking-[0.28em] text-current/70">Socket</p>
                     <p className="mt-2 font-medium">{socketLabel}</p>
@@ -274,6 +405,56 @@ export default function DashboardPage() {
                 <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
                   <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Futures</p>
                   <p className="mt-3 text-lg font-semibold text-fuchsia-300">{summary.futuresCount}</p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+                <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">{t.search}</p>
+                  <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+                    <div className="flex-1 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3">
+                      <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                        placeholder={t.searchPlaceholder}
+                        className="w-full bg-transparent text-sm text-slate-100 outline-none"
+                      />
+                    </div>
+                    <select
+                      value={selectedSymbol}
+                      onChange={(event) => setSelectedSymbol(event.target.value)}
+                      className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-slate-100 outline-none"
+                    >
+                      <option value="">{t.assetView}</option>
+                      {searchableRows.slice(0, 20).map((row) => (
+                        <option key={row.id} value={row.symbol}>
+                          {row.symbol}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">{t.activeClock}</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs text-slate-500">{t.date}</p>
+                      <p className="mt-1 text-sm text-white">{formattedDate}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">{t.day}</p>
+                      <p className="mt-1 text-sm text-white">{formattedDay}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">{t.time}</p>
+                      <p className="mt-1 text-sm text-white">{formattedClock}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-500">Session</p>
+                      <p className="mt-1 text-sm text-cyan-300">{detectSession(sessionNow)}</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -327,9 +508,33 @@ export default function DashboardPage() {
                         <p className="mt-2 text-sm text-slate-300">Lectura rápida del activo líder con zona de acumulación y estructura de precio.</p>
                       </div>
                       <div className="text-right text-xs text-slate-500">
-                        <p>ATR {strongestRow ? (strongestRow.atrRatio ?? strongestRow.atr_ratio ?? '--') : '--'}</p>
+                        <p>{t.chartRange}: {chartRange}</p>
                         <p>{strongestRow?.volumePattern ?? '--'}</p>
                       </div>
+                    </div>
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      {chartRangeOptions.map((range) => (
+                        <button
+                          key={range}
+                          type="button"
+                          onClick={() => setChartRange(range)}
+                          className={`rounded-full border px-3 py-1 text-xs transition ${
+                            chartRange === range
+                              ? 'border-cyan-400/30 bg-cyan-400/12 text-cyan-100'
+                              : 'border-white/10 bg-white/[0.04] text-slate-300'
+                          }`}
+                        >
+                          {range}
+                        </button>
+                      ))}
+                      <a
+                        href={getTradingViewLink(strongestRow)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-200 transition hover:bg-emerald-500/15"
+                      >
+                        {t.openTv}
+                      </a>
                     </div>
                     <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_0.34fr]">
                       <div className="rounded-[22px] border border-white/8 bg-slate-950/70 p-3">

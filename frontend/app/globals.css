@@ -73,3 +73,40 @@ select {
 .font-mono {
   font-family: "Cascadia Mono", "JetBrains Mono", "Consolas", monospace;
 }
+
+.theme-light {
+  color: #0f172a;
+}
+
+.theme-light .glass-panel {
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.96), rgba(226, 232, 240, 0.82));
+  border-color: rgba(15, 23, 42, 0.12);
+  box-shadow: 0 24px 90px rgba(148, 163, 184, 0.22);
+}
+
+.theme-light .bg-slate-950\/70,
+.theme-light .bg-\[rgba\(4\,8\,22\,0\.62\)\],
+.theme-light .bg-\[linear-gradient\(180deg\,rgba\(8\,15\,35\,\.95\)\,rgba\(6\,12\,28\,\.8\)\)\] {
+  background: rgba(255, 255, 255, 0.72) !important;
+}
+
+.theme-light .text-white {
+  color: #0f172a !important;
+}
+
+.theme-light .text-slate-100,
+.theme-light .text-slate-200,
+.theme-light .text-slate-300 {
+  color: #1e293b !important;
+}
+
+.theme-light .text-slate-400,
+.theme-light .text-slate-500 {
+  color: #475569 !important;
+}
+
+.theme-light select,
+.theme-light input,
+.theme-light button {
+  color: inherit;
+}
