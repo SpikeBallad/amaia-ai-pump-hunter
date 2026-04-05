@@ -949,29 +949,41 @@ export default function DashboardPage() {
                         <button
                           type="button"
                           onClick={() => setActiveTradeModal('entries')}
-                          className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5 text-left transition hover:border-cyan-400/20 hover:bg-white/[0.05]"
+                          className="rounded-[26px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-5 text-left transition hover:border-cyan-400/20 hover:bg-white/[0.05]"
                         >
-                          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Entries</p>
-                          <p className="mt-3 text-2xl font-semibold text-white">{suggestedEntries.length}</p>
-                          <p className="mt-3 text-sm leading-7 text-slate-400">Abre las entradas limit en un popup limpio y separado.</p>
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Entries</p>
+                            <span className="inline-flex h-2.5 w-2.5 rounded-full bg-cyan-300 shadow-[0_0_18px_rgba(103,232,249,0.8)]" />
+                          </div>
+                          <p className="mt-4 text-3xl font-semibold text-white">{suggestedEntries.length}</p>
+                          <p className="mt-2 text-xs uppercase tracking-[0.22em] text-slate-500">Layered limit ladder</p>
+                          <p className="mt-4 text-sm leading-7 text-slate-400">Abre las entradas limit en un popup limpio y separado.</p>
                         </button>
                         <button
                           type="button"
                           onClick={() => setActiveTradeModal('plan')}
-                          className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5 text-left transition hover:border-cyan-400/20 hover:bg-white/[0.05]"
+                          className="rounded-[26px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-5 text-left transition hover:border-cyan-400/20 hover:bg-white/[0.05]"
                         >
-                          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Execution Plan</p>
-                          <p className="mt-3 text-2xl font-semibold text-white">{tradePlan?.decision ?? '--'}</p>
-                          <p className="mt-3 text-sm leading-7 text-slate-400">Visualiza entry, stop, risk, sizing y take profits sin compresion visual.</p>
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Execution Plan</p>
+                            <span className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-300 shadow-[0_0_18px_rgba(252,211,77,0.8)]" />
+                          </div>
+                          <p className="mt-4 text-3xl font-semibold text-white">{tradePlan?.decision ?? '--'}</p>
+                          <p className="mt-2 text-xs uppercase tracking-[0.22em] text-slate-500">Order blotter view</p>
+                          <p className="mt-4 text-sm leading-7 text-slate-400">Visualiza entry, stop, risk, sizing y take profits sin compresion visual.</p>
                         </button>
                         <button
                           type="button"
                           onClick={() => setActiveTradeModal('telegram')}
-                          className="rounded-[24px] border border-emerald-500/12 bg-emerald-500/[0.05] p-5 text-left transition hover:border-emerald-400/20 hover:bg-emerald-500/[0.08]"
+                          className="rounded-[26px] border border-emerald-500/12 bg-[linear-gradient(180deg,rgba(16,185,129,0.08),rgba(16,185,129,0.04))] p-5 text-left transition hover:border-emerald-400/20 hover:bg-emerald-500/[0.08]"
                         >
-                          <p className="text-xs uppercase tracking-[0.24em] text-emerald-200/70">Telegram Link</p>
-                          <p className="mt-3 text-2xl font-semibold text-white">{telegramConfigured ? 'Ready' : 'Setup'}</p>
-                          <p className="mt-3 text-sm leading-7 text-slate-400">Configura tu bot y envia el setup activo desde una ventana dedicada.</p>
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-xs uppercase tracking-[0.24em] text-emerald-200/70">Telegram Link</p>
+                            <span className="inline-flex h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-[0_0_18px_rgba(110,231,183,0.8)]" />
+                          </div>
+                          <p className="mt-4 text-3xl font-semibold text-white">{telegramConfigured ? 'Ready' : 'Setup'}</p>
+                          <p className="mt-2 text-xs uppercase tracking-[0.22em] text-slate-500">Alert delivery bridge</p>
+                          <p className="mt-4 text-sm leading-7 text-slate-400">Configura tu bot y envia el setup activo desde una ventana dedicada.</p>
                         </button>
                       </div>
                     </div>
@@ -1493,6 +1505,27 @@ export default function DashboardPage() {
           {tradePlan ? (
             <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
               <div className="space-y-5">
+                <div className="rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-5">
+                  <div className="grid gap-4 md:grid-cols-4">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Decision</p>
+                      <p className="mt-2 text-lg font-semibold text-white">{tradePlan.decision}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Score</p>
+                      <p className="mt-2 text-lg font-semibold text-cyan-200">{strongestRow?.score ?? '--'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Market</p>
+                      <p className="mt-2 text-lg font-semibold text-white">{strongestRow?.marketType ?? '--'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Exchange</p>
+                      <p className="mt-2 text-lg font-semibold text-white">{strongestRow?.exchange?.toUpperCase() ?? '--'}</p>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex flex-wrap items-center gap-3">
                   <span
                     className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
