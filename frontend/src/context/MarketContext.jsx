@@ -158,6 +158,8 @@ export function MarketProvider({ children }) {
         statusLabel: row.statusLabel,
         narrative: row.narrative,
         narrativeLabel: row.narrativeLabel,
+        tradePlan: row.tradePlan ?? null,
+        positionSizing: row.positionSizing ?? null,
         source,
         createdAt: new Date().toISOString(),
       };

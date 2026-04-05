@@ -260,6 +260,22 @@ function buildTradePlan(row, range, entries) {
   };
 }
 
+function buildPositionSizing(tradePlan, capital, riskPercent) {
+  if (!tradePlan || typeof capital !== 'number' || typeof riskPercent !== 'number') return null;
+  if (capital <= 0 || riskPercent <= 0) return null;
+  const riskBudgetUsd = capital * (riskPercent / 100);
+  const riskPerUnit = Math.max(tradePlan.avgEntry - tradePlan.stopPrice, 0.000001);
+  const quantity = riskBudgetUsd / riskPerUnit;
+  const positionSizeUsd = quantity * tradePlan.avgEntry;
+  return {
+    capital,
+    riskPercent,
+    riskBudgetUsd,
+    quantity,
+    positionSizeUsd,
+  };
+}
+
 function isMacroBottomBuy(row) {
   if (!row) return false;
   const dumpPct = typeof row.dumpPct === 'number' ? row.dumpPct : typeof row.dump_pct === 'number' ? row.dump_pct : 0;
@@ -280,6 +296,8 @@ export default function DashboardPage() {
   const [alertMarketFilter, setAlertMarketFilter] = useState('all');
   const [alertExchangeFilter, setAlertExchangeFilter] = useState('all');
   const [alertScoreThreshold, setAlertScoreThreshold] = useState(7);
+  const [accountCapital, setAccountCapital] = useState(1000);
+  const [riskPercentPerTrade, setRiskPercentPerTrade] = useState(1);
   const {
     backendStatus,
     moduleFilter,
@@ -389,6 +407,10 @@ export default function DashboardPage() {
   const ema50Path = useMemo(() => buildLinePath(calculateEmaSeries(chartCloseValues, 50)), [chartCloseValues]);
   const suggestedEntries = useMemo(() => buildSuggestedEntries(strongestRow, chartRange), [chartRange, strongestRow]);
   const tradePlan = useMemo(() => buildTradePlan(strongestRow, chartRange, suggestedEntries), [chartRange, strongestRow, suggestedEntries]);
+  const positionSizing = useMemo(
+    () => buildPositionSizing(tradePlan, Number(accountCapital), Number(riskPercentPerTrade)),
+    [accountCapital, riskPercentPerTrade, tradePlan]
+  );
   const macroBottomBuy = useMemo(() => isMacroBottomBuy(strongestRow), [strongestRow]);
   const liquidityTrapMarkers = useMemo(() => {
     if (!chartCandles.length || !strongestRow) return [];
@@ -797,23 +819,64 @@ export default function DashboardPage() {
                                   {tradePlan.decision}
                                 </span>
                               </div>
-                              <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                                <div className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
-                                  <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Avg Entry</p>
-                                  <p className="mt-2 text-lg font-semibold text-white">{formatPrice(tradePlan.avgEntry)}</p>
-                                </div>
+                                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                                  <div className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
+                                    <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Avg Entry</p>
+                                    <p className="mt-2 text-lg font-semibold text-white">{formatPrice(tradePlan.avgEntry)}</p>
+                                  </div>
                                 <div className="rounded-2xl border border-rose-500/15 bg-rose-500/8 p-4">
                                   <p className="text-xs uppercase tracking-[0.22em] text-rose-200/70">Stop Loss</p>
                                   <p className="mt-2 text-lg font-semibold text-rose-100">{formatPrice(tradePlan.stopPrice)}</p>
                                   <p className="mt-2 text-sm text-rose-200/70">Risk {tradePlan.maxRiskPct.toFixed(2)}%</p>
                                 </div>
-                                <div className="rounded-2xl border border-cyan-500/15 bg-cyan-500/8 p-4">
-                                  <p className="text-xs uppercase tracking-[0.22em] text-cyan-200/70">Position Risk</p>
-                                  <p className="mt-2 text-lg font-semibold text-cyan-100">{tradePlan.allocationPct}% size</p>
-                                  <p className="mt-2 text-sm text-cyan-200/70">RR max {tradePlan.riskRewardAtTp3}R</p>
+                                  <div className="rounded-2xl border border-cyan-500/15 bg-cyan-500/8 p-4">
+                                    <p className="text-xs uppercase tracking-[0.22em] text-cyan-200/70">Position Risk</p>
+                                    <p className="mt-2 text-lg font-semibold text-cyan-100">{tradePlan.allocationPct}% size</p>
+                                    <p className="mt-2 text-sm text-cyan-200/70">RR max {tradePlan.riskRewardAtTp3}R</p>
+                                  </div>
                                 </div>
+                                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                  <label className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
+                                    <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Account Capital</p>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="100"
+                                      value={accountCapital}
+                                      onChange={(event) => setAccountCapital(event.target.value)}
+                                      className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
+                                    />
+                                  </label>
+                                  <label className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
+                                    <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Risk Per Trade %</p>
+                                    <input
+                                      type="number"
+                                      min="0.1"
+                                      max="10"
+                                      step="0.1"
+                                      value={riskPercentPerTrade}
+                                      onChange={(event) => setRiskPercentPerTrade(event.target.value)}
+                                      className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
+                                    />
+                                  </label>
+                                </div>
+                                {positionSizing ? (
+                                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                                    <div className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
+                                      <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Risk Budget</p>
+                                      <p className="mt-2 text-lg font-semibold text-white">{formatPrice(positionSizing.riskBudgetUsd)}</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
+                                      <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Position Size</p>
+                                      <p className="mt-2 text-lg font-semibold text-white">{formatPrice(positionSizing.positionSizeUsd)}</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
+                                      <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Quantity</p>
+                                      <p className="mt-2 text-lg font-semibold text-white">{positionSizing.quantity.toFixed(4)}</p>
+                                    </div>
+                                  </div>
+                                ) : null}
                               </div>
-                            </div>
                             <div className="rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
                               <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Take Profit Ladder</p>
                               <div className="mt-4 grid gap-3">
@@ -1358,6 +1421,11 @@ export default function DashboardPage() {
                           <p className="mt-1 text-slate-400">
                             TP1 {formatPrice(tradePlan.takeProfits[0]?.price)} · TP2 {formatPrice(tradePlan.takeProfits[1]?.price)} · TP3 {formatPrice(tradePlan.takeProfits[2]?.price)}
                           </p>
+                          {positionSizing ? (
+                            <p className="mt-1 text-slate-400">
+                              Risk {formatPrice(positionSizing.riskBudgetUsd)} · Size {formatPrice(positionSizing.positionSizeUsd)} · Qty {positionSizing.quantity.toFixed(4)}
+                            </p>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>

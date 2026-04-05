@@ -29,7 +29,30 @@ export function playAlertSound() {
   }
 }
 
+function formatAlertNumber(value, digits = 4) {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return '--';
+  }
+  return value.toFixed(digits);
+}
+
 export async function sendTelegramAlert(alert) {
-  console.info('Telegram alert placeholder', alert);
+  const telegramPayload = {
+    title: `${alert.estado === 'HIGH' ? 'BUY ALERT' : 'WATCH ALERT'} · ${alert.symbol}`,
+    market: alert.marketType,
+    exchange: alert.exchange,
+    score: alert.score,
+    narrative: alert.narrativeLabel ?? alert.narrative,
+    decision: alert.tradePlan?.decision ?? '--',
+    avgEntry: formatAlertNumber(alert.tradePlan?.avgEntry, 6),
+    stopLoss: formatAlertNumber(alert.tradePlan?.stopPrice, 6),
+    tp1: formatAlertNumber(alert.tradePlan?.takeProfits?.[0]?.price, 6),
+    tp2: formatAlertNumber(alert.tradePlan?.takeProfits?.[1]?.price, 6),
+    tp3: formatAlertNumber(alert.tradePlan?.takeProfits?.[2]?.price, 6),
+    riskPct: formatAlertNumber(alert.tradePlan?.maxRiskPct, 2),
+    positionSizeUsd: formatAlertNumber(alert.positionSizing?.positionSizeUsd, 2),
+    quantity: formatAlertNumber(alert.positionSizing?.quantity, 6),
+  };
+  console.info('Telegram alert placeholder', telegramPayload);
   return { ok: true, status: 'placeholder' };
 }
