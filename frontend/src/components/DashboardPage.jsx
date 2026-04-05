@@ -144,6 +144,31 @@ function buildSparklinePath(candles) {
     .join(' ');
 }
 
+function calculateEmaSeries(values, period) {
+  if (!values.length) return [];
+  const multiplier = 2 / (period + 1);
+  let ema = values[0];
+  return values.map((value, index) => {
+    if (index === 0) return value;
+    ema = (value - ema) * multiplier + ema;
+    return ema;
+  });
+}
+
+function buildLinePath(values) {
+  if (!values?.length) return '';
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = Math.max(max - min, 0.000001);
+  return values
+    .map((value, index) => {
+      const x = (index / Math.max(values.length - 1, 1)) * 100;
+      const y = 100 - ((value - min) / range) * 100;
+      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(' ');
+}
+
 function getTradingViewLink(row) {
   if (!row?.symbol) return 'https://www.tradingview.com/';
   if (row.exchange === 'binance') {
@@ -176,6 +201,9 @@ export default function DashboardPage() {
   const [selectedSymbol, setSelectedSymbol] = useState('');
   const [chartRange, setChartRange] = useState('1W');
   const [sessionNow, setSessionNow] = useState(() => new Date());
+  const [alertMarketFilter, setAlertMarketFilter] = useState('all');
+  const [alertExchangeFilter, setAlertExchangeFilter] = useState('all');
+  const [alertScoreThreshold, setAlertScoreThreshold] = useState(7);
   const {
     backendStatus,
     moduleFilter,
@@ -279,10 +307,44 @@ export default function DashboardPage() {
   const averageScore = summary.averageScore ? summary.averageScore.toFixed(1) : '0.0';
   const chartCandles = useMemo(() => sliceCandlesForRange(strongestRow?.candles ?? [], chartRange), [chartRange, strongestRow]);
   const sparklinePath = useMemo(() => buildSparklinePath(chartCandles), [chartCandles]);
+  const chartCloseValues = useMemo(() => chartCandles.map((candle) => candle.close), [chartCandles]);
+  const ema20Path = useMemo(() => buildLinePath(calculateEmaSeries(chartCloseValues, 20)), [chartCloseValues]);
+  const ema50Path = useMemo(() => buildLinePath(calculateEmaSeries(chartCloseValues, 50)), [chartCloseValues]);
+  const liquidityTrapMarkers = useMemo(() => {
+    if (!chartCandles.length || !strongestRow) return [];
+    const highs = chartCandles.map((c) => c.high);
+    const lows = chartCandles.map((c) => c.low);
+    const closes = chartCandles.map((c) => c.close);
+    const accumulationHigh = Math.max(...highs);
+    const accumulationLow = Math.min(...lows);
+    const min = Math.min(...lows);
+    const max = Math.max(...highs);
+    const range = Math.max(max - min, 0.000001);
+    return chartCandles
+      .map((candle, index) => {
+        const upperTrap = candle.high > accumulationHigh * 0.995 && candle.close < accumulationHigh;
+        const lowerTrap = candle.low < accumulationLow * 1.005 && candle.close > accumulationLow;
+        if (!upperTrap && !lowerTrap) return null;
+        const x = (index / Math.max(chartCandles.length - 1, 1)) * 100;
+        const y = 100 - (((upperTrap ? candle.high : candle.low) - min) / range) * 100;
+        return { x, y, type: upperTrap ? 'upper' : 'lower' };
+      })
+      .filter(Boolean);
+  }, [chartCandles, strongestRow]);
   const silentRows = useMemo(() => filteredRows.filter((row) => row.silentMarket).slice(0, 5), [filteredRows]);
   const spikeRows = useMemo(
     () => filteredRows.filter((row) => (row.volumePattern ?? '').toLowerCase().includes('spike')).slice(0, 5),
     [filteredRows]
+  );
+  const filteredAlerts = useMemo(
+    () =>
+      alertLog.filter((item) => {
+        const marketMatch = alertMarketFilter === 'all' || item.marketBucket === alertMarketFilter;
+        const exchangeMatch = alertExchangeFilter === 'all' || item.exchange === alertExchangeFilter;
+        const scoreMatch = item.score >= alertScoreThreshold;
+        return marketMatch && exchangeMatch && scoreMatch;
+      }),
+    [alertExchangeFilter, alertLog, alertMarketFilter, alertScoreThreshold]
   );
   const marketModeLabel =
     moduleFilter === 'watchlist'
@@ -548,6 +610,14 @@ export default function DashboardPage() {
                             </defs>
                             <rect x="6" y="30" width="88" height="32" rx="8" fill="rgba(34,211,238,0.08)" stroke="rgba(34,211,238,0.18)" strokeDasharray="3 3" />
                             <path d={sparklinePath} fill="none" stroke="url(#amaiaChartStroke)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                            {ema20Path ? <path d={ema20Path} fill="none" stroke="rgba(251,191,36,0.9)" strokeWidth="1.2" strokeDasharray="2 1.5" /> : null}
+                            {ema50Path ? <path d={ema50Path} fill="none" stroke="rgba(244,114,182,0.85)" strokeWidth="1.2" strokeDasharray="4 2" /> : null}
+                            {liquidityTrapMarkers.map((marker, index) => (
+                              <g key={`${marker.type}-${index}`}>
+                                <circle cx={marker.x} cy={marker.y} r="1.9" fill={marker.type === 'upper' ? '#f97316' : '#34d399'} />
+                                <circle cx={marker.x} cy={marker.y} r="3.3" fill="transparent" stroke={marker.type === 'upper' ? '#f97316' : '#34d399'} strokeOpacity="0.35" />
+                              </g>
+                            ))}
                           </svg>
                         ) : (
                           <div className="flex h-48 items-center justify-center text-sm text-slate-500">No chart data yet.</div>
@@ -565,6 +635,10 @@ export default function DashboardPage() {
                         <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
                           <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Phase</p>
                           <p className="mt-2 text-sm text-white">{strongestRow?.statusLabel ?? strongestRow?.status_label ?? '--'}</p>
+                        </div>
+                        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                          <p className="text-xs uppercase tracking-[0.22em] text-slate-500">EMA Overlay</p>
+                          <p className="mt-2 text-sm text-white">EMA20 / EMA50</p>
                         </div>
                       </div>
                     </div>
@@ -870,25 +944,46 @@ export default function DashboardPage() {
               <div className="mt-4 grid gap-3 sm:grid-cols-3">
                 <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
                   <p className="text-xs uppercase tracking-[0.22em] text-slate-500">High Alerts</p>
-                  <p className="mt-2 text-xl font-semibold text-emerald-300">{alertLog.filter((item) => item.estado === 'HIGH').length}</p>
+                  <p className="mt-2 text-xl font-semibold text-emerald-300">{filteredAlerts.filter((item) => item.estado === 'HIGH').length}</p>
                 </div>
                 <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
                   <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Watch Alerts</p>
-                  <p className="mt-2 text-xl font-semibold text-amber-300">{alertLog.filter((item) => item.estado === 'WATCHLIST').length}</p>
+                  <p className="mt-2 text-xl font-semibold text-amber-300">{filteredAlerts.filter((item) => item.estado === 'WATCHLIST').length}</p>
                 </div>
                 <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
                   <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Audio</p>
                   <p className="mt-2 text-sm font-semibold text-slate-100">{soundEnabled ? 'Enabled' : 'Disabled'}</p>
                 </div>
               </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <FilterSelect label="Alert Market" value={alertMarketFilter} onChange={(event) => setAlertMarketFilter(event.target.value)} options={[{ value: 'all', label: 'All Markets' }, { value: 'spot', label: 'Spot' }, { value: 'futures', label: 'Futures' }]} />
+                <FilterSelect label="Alert Exchange" value={alertExchangeFilter} onChange={(event) => setAlertExchangeFilter(event.target.value)} options={exchangeOptions} />
+                <label className="flex flex-col gap-2">
+                  <span className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Alert Score</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="1"
+                    value={alertScoreThreshold}
+                    onChange={(event) => setAlertScoreThreshold(Number(event.target.value))}
+                    className="accent-cyan-400"
+                  />
+                  <div className="flex items-center justify-between text-sm text-slate-400">
+                    <span>0</span>
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-slate-200">{alertScoreThreshold}</span>
+                    <span>10</span>
+                  </div>
+                </label>
+              </div>
               <div className="mt-5 space-y-3">
-                {alertLog.slice(0, 6).map((item) => (
+                {filteredAlerts.slice(0, 6).map((item) => (
                   <div key={item.id} className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <p className="font-semibold text-white">{item.symbol}</p>
                         <p className="mt-1 text-xs uppercase tracking-[0.22em] text-slate-500">
-                          {item.exchange} · {item.narrativeLabel ?? item.narrative}
+                          {item.exchange} · {item.marketType} · {item.narrativeLabel ?? item.narrative}
                         </p>
                       </div>
                       <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${getStateClass(item.estado)}`}>{item.estado}</span>
@@ -899,9 +994,9 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 ))}
-                {alertLog.length === 0 ? (
+                {filteredAlerts.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-5 text-sm text-slate-400">
-                    No hay alertas disparadas todavia.
+                    No alerts match the current alert filters.
                   </div>
                 ) : null}
               </div>
