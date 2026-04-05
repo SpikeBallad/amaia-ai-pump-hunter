@@ -213,6 +213,53 @@ function buildSuggestedEntries(row, range) {
   }));
 }
 
+function buildTradePlan(row, range, entries) {
+  if (!row?.price || !entries?.length) return null;
+
+  const atrRatio = typeof row.atrRatio === 'number' ? row.atrRatio : typeof row.atr_ratio === 'number' ? row.atr_ratio : 0.01;
+  const rangePct = typeof row.rangePct === 'number' ? row.rangePct : typeof row.range_pct === 'number' ? row.range_pct : 12;
+  const accumulationLow = row?.candles?.length ? Math.min(...row.candles.map((candle) => candle.low)) : row.price * 0.9;
+  const avgEntry = entries.reduce((total, entry) => total + entry.price, 0) / entries.length;
+  const stopBufferPct = Math.max(atrRatio * 100 * 1.1, Math.min(rangePct * 0.35, range === '1M' ? 11 : range === '1W' ? 8 : 5));
+  const structuralStop = accumulationLow * (1 - Math.max(atrRatio * 0.8, 0.008));
+  const percentStop = avgEntry * (1 - stopBufferPct / 100);
+  const stopPrice = Math.min(percentStop, structuralStop);
+  const riskPerUnit = Math.max(avgEntry - stopPrice, avgEntry * 0.005);
+  const rewardMultiplier = range === '1D' ? [1.6, 2.4, 3.2] : range === '1W' ? [2.2, 3.4, 4.8] : [3.2, 4.8, 6.5];
+  const takeProfits = rewardMultiplier.map((multiple, index) => ({
+    label: `TP${index + 1}`,
+    price: avgEntry + riskPerUnit * multiple,
+    rewardMultiple: multiple,
+  }));
+  const maxRiskPct = ((avgEntry - stopPrice) / avgEntry) * 100;
+  const allocationPct = range === '1D' ? 18 : range === '1W' ? 26 : 34;
+  const decision =
+    row.estado === 'HIGH'
+      ? row.isBreakingOut
+        ? 'Monitor'
+        : 'Entry'
+      : row.estado === 'WATCHLIST'
+        ? 'Monitor'
+        : 'Skip';
+  const decisionReason =
+    decision === 'Entry'
+      ? 'Compresion valida y estructura lista para construir posicion en escalones.'
+      : decision === 'Monitor'
+        ? 'La estructura es interesante, pero conviene esperar mejor timing o confirmacion.'
+        : 'La ventaja estadistica no es suficiente para comprometer capital ahora.';
+
+  return {
+    avgEntry,
+    stopPrice,
+    takeProfits,
+    maxRiskPct,
+    allocationPct,
+    decision,
+    decisionReason,
+    riskRewardAtTp3: takeProfits[2] ? ((takeProfits[2].price - avgEntry) / Math.max(avgEntry - stopPrice, 0.000001)).toFixed(2) : '--',
+  };
+}
+
 function isMacroBottomBuy(row) {
   if (!row) return false;
   const dumpPct = typeof row.dumpPct === 'number' ? row.dumpPct : typeof row.dump_pct === 'number' ? row.dump_pct : 0;
@@ -341,6 +388,7 @@ export default function DashboardPage() {
   const ema20Path = useMemo(() => buildLinePath(calculateEmaSeries(chartCloseValues, 20)), [chartCloseValues]);
   const ema50Path = useMemo(() => buildLinePath(calculateEmaSeries(chartCloseValues, 50)), [chartCloseValues]);
   const suggestedEntries = useMemo(() => buildSuggestedEntries(strongestRow, chartRange), [chartRange, strongestRow]);
+  const tradePlan = useMemo(() => buildTradePlan(strongestRow, chartRange, suggestedEntries), [chartRange, strongestRow, suggestedEntries]);
   const macroBottomBuy = useMemo(() => isMacroBottomBuy(strongestRow), [strongestRow]);
   const liquidityTrapMarkers = useMemo(() => {
     if (!chartCandles.length || !strongestRow) return [];
@@ -720,16 +768,71 @@ export default function DashboardPage() {
                           </span>
                         ) : null}
                       </div>
-                      <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                        {suggestedEntries.map((entry) => (
-                          <div key={entry.label} className="rounded-2xl border border-white/8 bg-white/[0.04] p-4">
-                            <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{entry.label}</p>
-                            <p className="mt-2 text-lg font-semibold text-white">{formatPrice(entry.price)}</p>
-                            <p className="mt-2 text-sm text-slate-400">Limit order · {entry.offsetPct.toFixed(2)}% below spot</p>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                          {suggestedEntries.map((entry) => (
+                            <div key={entry.label} className="rounded-2xl border border-white/8 bg-white/[0.04] p-4">
+                              <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{entry.label}</p>
+                              <p className="mt-2 text-lg font-semibold text-white">{formatPrice(entry.price)}</p>
+                              <p className="mt-2 text-sm text-slate-400">Limit order · {entry.offsetPct.toFixed(2)}% below spot</p>
+                            </div>
+                          ))}
+                        </div>
+                        {tradePlan ? (
+                          <div className="mt-4 grid gap-3 xl:grid-cols-[1.1fr_0.9fr]">
+                            <div className="rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
+                              <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Execution Plan</p>
+                                  <p className="mt-2 text-sm text-slate-300">{tradePlan.decisionReason}</p>
+                                </div>
+                                <span
+                                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                                    tradePlan.decision === 'Entry'
+                                      ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
+                                      : tradePlan.decision === 'Monitor'
+                                        ? 'border-amber-500/20 bg-amber-500/10 text-amber-200'
+                                        : 'border-rose-500/20 bg-rose-500/10 text-rose-200'
+                                  }`}
+                                >
+                                  {tradePlan.decision}
+                                </span>
+                              </div>
+                              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                                <div className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
+                                  <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Avg Entry</p>
+                                  <p className="mt-2 text-lg font-semibold text-white">{formatPrice(tradePlan.avgEntry)}</p>
+                                </div>
+                                <div className="rounded-2xl border border-rose-500/15 bg-rose-500/8 p-4">
+                                  <p className="text-xs uppercase tracking-[0.22em] text-rose-200/70">Stop Loss</p>
+                                  <p className="mt-2 text-lg font-semibold text-rose-100">{formatPrice(tradePlan.stopPrice)}</p>
+                                  <p className="mt-2 text-sm text-rose-200/70">Risk {tradePlan.maxRiskPct.toFixed(2)}%</p>
+                                </div>
+                                <div className="rounded-2xl border border-cyan-500/15 bg-cyan-500/8 p-4">
+                                  <p className="text-xs uppercase tracking-[0.22em] text-cyan-200/70">Position Risk</p>
+                                  <p className="mt-2 text-lg font-semibold text-cyan-100">{tradePlan.allocationPct}% size</p>
+                                  <p className="mt-2 text-sm text-cyan-200/70">RR max {tradePlan.riskRewardAtTp3}R</p>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
+                              <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Take Profit Ladder</p>
+                              <div className="mt-4 grid gap-3">
+                                {tradePlan.takeProfits.map((target) => (
+                                  <div key={target.label} className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{target.label}</p>
+                                      <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-200">
+                                        {target.rewardMultiple.toFixed(1)}R
+                                      </span>
+                                    </div>
+                                    <p className="mt-2 text-lg font-semibold text-white">{formatPrice(target.price)}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           </div>
-                        ))}
+                        ) : null}
                       </div>
-                    </div>
                   </div>
                 </div>
 
@@ -1239,15 +1342,26 @@ export default function DashboardPage() {
                   Score {activeAlert.score} detectado en {activeAlert.exchange.toUpperCase()} bajo narrativa{' '}
                   {activeAlert.narrativeLabel ?? activeAlert.narrative}.
                 </p>
-                {activeAlert.estado === 'HIGH' && activeAlert.symbol === strongestRow?.symbol ? (
-                  <div className="mt-4 grid gap-2">
-                    {suggestedEntries.map((entry) => (
-                      <div key={`popup-${entry.label}`} className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2 text-sm text-slate-200">
-                        {entry.label}: {formatPrice(entry.price)}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
+                  {activeAlert.estado === 'HIGH' && activeAlert.symbol === strongestRow?.symbol ? (
+                    <div className="mt-4 grid gap-2">
+                      {suggestedEntries.map((entry) => (
+                        <div key={`popup-${entry.label}`} className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2 text-sm text-slate-200">
+                          {entry.label}: {formatPrice(entry.price)}
+                        </div>
+                      ))}
+                      {tradePlan ? (
+                        <div className="mt-2 rounded-2xl border border-cyan-400/15 bg-cyan-400/[0.06] p-3 text-sm text-slate-200">
+                          <p className="text-[11px] uppercase tracking-[0.24em] text-cyan-200/70">Trade Plan</p>
+                          <p className="mt-2">
+                            {tradePlan.decision} · Avg {formatPrice(tradePlan.avgEntry)} · Stop {formatPrice(tradePlan.stopPrice)}
+                          </p>
+                          <p className="mt-1 text-slate-400">
+                            TP1 {formatPrice(tradePlan.takeProfits[0]?.price)} · TP2 {formatPrice(tradePlan.takeProfits[1]?.price)} · TP3 {formatPrice(tradePlan.takeProfits[2]?.price)}
+                          </p>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
               </div>
               <button
                 type="button"
