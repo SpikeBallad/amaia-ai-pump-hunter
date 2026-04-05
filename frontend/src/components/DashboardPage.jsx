@@ -192,6 +192,35 @@ function sliceCandlesForRange(candles, range) {
   return candles.slice(-120);
 }
 
+function buildSuggestedEntries(row, range) {
+  if (!row?.price) return [];
+  const lastPrice = row.price;
+  const rangePct = typeof row.rangePct === 'number' ? row.rangePct : typeof row.range_pct === 'number' ? row.range_pct : 0;
+  const atrRatio = typeof row.atrRatio === 'number' ? row.atrRatio : typeof row.atr_ratio === 'number' ? row.atr_ratio : 0.01;
+
+  const depthMultiplier = range === '1D' ? 0.45 : range === '1W' ? 0.75 : 1.1;
+  const basePullback = Math.max(atrRatio * 100 * depthMultiplier, Math.min(rangePct * 0.2, 6));
+  const ladder = [
+    Math.max(0.1, lastPrice * (1 - (basePullback / 100))),
+    Math.max(0.1, lastPrice * (1 - ((basePullback * 1.75) / 100))),
+    Math.max(0.1, lastPrice * (1 - ((basePullback * 2.45) / 100))),
+  ];
+
+  return ladder.map((price, index) => ({
+    label: `Entry ${index + 1}`,
+    price,
+    offsetPct: ((lastPrice - price) / lastPrice) * 100,
+  }));
+}
+
+function isMacroBottomBuy(row) {
+  if (!row) return false;
+  const dumpPct = typeof row.dumpPct === 'number' ? row.dumpPct : typeof row.dump_pct === 'number' ? row.dump_pct : 0;
+  const rangePct = typeof row.rangePct === 'number' ? row.rangePct : typeof row.range_pct === 'number' ? row.range_pct : 100;
+  const atrRatio = typeof row.atrRatio === 'number' ? row.atrRatio : typeof row.atr_ratio === 'number' ? row.atr_ratio : 1;
+  return row.estado === 'HIGH' && dumpPct >= 82 && rangePct <= 10 && atrRatio <= 0.018;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -310,6 +339,8 @@ export default function DashboardPage() {
   const chartCloseValues = useMemo(() => chartCandles.map((candle) => candle.close), [chartCandles]);
   const ema20Path = useMemo(() => buildLinePath(calculateEmaSeries(chartCloseValues, 20)), [chartCloseValues]);
   const ema50Path = useMemo(() => buildLinePath(calculateEmaSeries(chartCloseValues, 50)), [chartCloseValues]);
+  const suggestedEntries = useMemo(() => buildSuggestedEntries(strongestRow, chartRange), [chartRange, strongestRow]);
+  const macroBottomBuy = useMemo(() => isMacroBottomBuy(strongestRow), [strongestRow]);
   const liquidityTrapMarkers = useMemo(() => {
     if (!chartCandles.length || !strongestRow) return [];
     const highs = chartCandles.map((c) => c.high);
@@ -537,6 +568,11 @@ export default function DashboardPage() {
                           <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
                             {strongestRow.signalLabel ?? strongestRow.signal_label}
                           </span>
+                          {macroBottomBuy ? (
+                            <span className="rounded-full border border-fuchsia-500/20 bg-fuchsia-500/12 px-3 py-1 text-xs font-semibold text-fuchsia-200">
+                              MACRO BOTTOM BUY
+                            </span>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>
@@ -640,6 +676,30 @@ export default function DashboardPage() {
                           <p className="text-xs uppercase tracking-[0.22em] text-slate-500">EMA Overlay</p>
                           <p className="mt-2 text-sm text-white">EMA20 / EMA50</p>
                         </div>
+                      </div>
+                    </div>
+                    <div className="mt-4 rounded-[22px] border border-emerald-500/15 bg-emerald-500/8 p-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="text-[11px] uppercase tracking-[0.24em] text-emerald-200/70">Buy Ladder</p>
+                          <p className="mt-2 text-sm text-emerald-50">
+                            Tres entradas limit sugeridas para {strongestRow?.symbol ?? 'el activo seleccionado'}, adaptadas al rango {chartRange}.
+                          </p>
+                        </div>
+                        {macroBottomBuy ? (
+                          <span className="rounded-full border border-fuchsia-500/20 bg-fuchsia-500/12 px-3 py-1 text-xs font-semibold text-fuchsia-200">
+                            MACRO BOTTOM BUY
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                        {suggestedEntries.map((entry) => (
+                          <div key={entry.label} className="rounded-2xl border border-white/8 bg-white/[0.04] p-4">
+                            <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{entry.label}</p>
+                            <p className="mt-2 text-lg font-semibold text-white">{formatPrice(entry.price)}</p>
+                            <p className="mt-2 text-sm text-slate-400">Limit order · {entry.offsetPct.toFixed(2)}% below spot</p>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -1133,12 +1193,33 @@ export default function DashboardPage() {
           <div className="fixed bottom-6 right-6 z-50 w-[min(92vw,420px)] rounded-[28px] border border-emerald-400/20 bg-slate-950/92 p-5 shadow-[0_24px_90px_rgba(16,185,129,0.18)] backdrop-blur">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-[11px] uppercase tracking-[0.3em] text-emerald-400">Hunter Alert</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[11px] uppercase tracking-[0.3em] text-emerald-400">BUY Alert</p>
+                  {activeAlert.estado === 'HIGH' ? (
+                    <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-200">
+                      HIGH CONVICTION
+                    </span>
+                  ) : null}
+                  {macroBottomBuy && activeAlert.symbol === strongestRow?.symbol ? (
+                    <span className="rounded-full border border-fuchsia-500/20 bg-fuchsia-500/12 px-3 py-1 text-[11px] font-semibold text-fuchsia-200">
+                      MACRO BOTTOM BUY
+                    </span>
+                  ) : null}
+                </div>
                 <h3 className="mt-2 text-2xl font-semibold text-white">{activeAlert.symbol}</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-400">
                   Score {activeAlert.score} detectado en {activeAlert.exchange.toUpperCase()} bajo narrativa{' '}
                   {activeAlert.narrativeLabel ?? activeAlert.narrative}.
                 </p>
+                {activeAlert.estado === 'HIGH' && activeAlert.symbol === strongestRow?.symbol ? (
+                  <div className="mt-4 grid gap-2">
+                    {suggestedEntries.map((entry) => (
+                      <div key={`popup-${entry.label}`} className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2 text-sm text-slate-200">
+                        {entry.label}: {formatPrice(entry.price)}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
               <button
                 type="button"
