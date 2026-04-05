@@ -304,6 +304,8 @@ export default function DashboardPage() {
   const [telegramBotToken, setTelegramBotToken] = useState('');
   const [telegramChatId, setTelegramChatId] = useState('');
   const [telegramStatus, setTelegramStatus] = useState('');
+  const [telegramConfigured, setTelegramConfigured] = useState(false);
+  const [telegramChatPreview, setTelegramChatPreview] = useState('');
   const {
     backendStatus,
     moduleFilter,
@@ -346,19 +348,18 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    const settings = loadTelegramSettings();
-    setTelegramEnabled(settings.enabled);
-    setTelegramBotToken(settings.botToken);
-    setTelegramChatId(settings.chatId);
-  }, []);
+    async function hydrateTelegramSettings() {
+      const settings = await loadTelegramSettings();
+      setTelegramEnabled(settings.enabled);
+      setTelegramConfigured(settings.configured);
+      setTelegramChatPreview(settings.chatIdPreview ?? '');
+      if (settings.chatIdPreview) {
+        setTelegramChatId(settings.chatIdPreview);
+      }
+    }
 
-  useEffect(() => {
-    saveTelegramSettings({
-      enabled: telegramEnabled,
-      botToken: telegramBotToken,
-      chatId: telegramChatId,
-    });
-  }, [telegramBotToken, telegramChatId, telegramEnabled]);
+    hydrateTelegramSettings();
+  }, []);
 
   useEffect(() => {
     if (selectedSymbol && !rows.some((row) => row.symbol === selectedSymbol)) {
@@ -498,6 +499,27 @@ export default function DashboardPage() {
       setTelegramStatus('Setup enviado correctamente.');
     } catch {
       setTelegramStatus('No se pudo enviar a Telegram. Revisa token y chat ID.');
+    }
+  }
+
+  async function handleSaveTelegramSettings() {
+    try {
+      setTelegramStatus('Guardando configuracion segura...');
+      const response = await saveTelegramSettings({
+        enabled: telegramEnabled,
+        botToken: telegramBotToken,
+        chatId: telegramChatId,
+      });
+      if (!response.ok) {
+        throw new Error('Save failed');
+      }
+      const payload = await response.json();
+      setTelegramConfigured(payload.settings?.configured ?? false);
+      setTelegramChatPreview(payload.settings?.chatIdPreview ?? '');
+      setTelegramBotToken('');
+      setTelegramStatus('Telegram conectado de forma segura.');
+    } catch {
+      setTelegramStatus('No se pudo guardar la configuracion de Telegram.');
     }
   }
 
@@ -965,6 +987,11 @@ export default function DashboardPage() {
                                         {telegramEnabled ? 'Enabled' : 'Disabled'}
                                       </button>
                                     </div>
+                                    <p className="mt-2 text-sm text-slate-400">
+                                      {telegramConfigured
+                                        ? `Configurado en servidor · chat ${telegramChatPreview || '--'}`
+                                        : 'Aun no hay credenciales guardadas en servidor.'}
+                                    </p>
                                   </label>
                                   <label className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
                                     <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Bot Token</p>
@@ -986,10 +1013,17 @@ export default function DashboardPage() {
                                       className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
                                     />
                                   </label>
+                                  <button
+                                    type="button"
+                                    onClick={handleSaveTelegramSettings}
+                                    className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-400/15"
+                                  >
+                                    Save Telegram Securely
+                                  </button>
                                   {telegramStatus ? (
                                     <p className="text-sm text-slate-300">{telegramStatus}</p>
                                   ) : (
-                                    <p className="text-sm text-slate-500">Tus datos se guardan localmente en este navegador.</p>
+                                    <p className="text-sm text-slate-500">Las credenciales se guardan cifradas del lado servidor y no se exponen al cliente.</p>
                                   )}
                                 </div>
                               </div>

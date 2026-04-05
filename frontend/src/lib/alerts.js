@@ -1,5 +1,3 @@
-const TELEGRAM_SETTINGS_KEY = 'amaia.telegram.settings';
-
 export function playAlertSound() {
   try {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -38,42 +36,30 @@ function formatAlertNumber(value, digits = 4) {
   return value.toFixed(digits);
 }
 
-export function loadTelegramSettings() {
-  if (typeof window === 'undefined') {
-    return { enabled: false, botToken: '', chatId: '' };
+export async function loadTelegramSettings() {
+  const response = await fetch('/api/telegram/settings', { cache: 'no-store' });
+  if (!response.ok) {
+    return { enabled: false, configured: false, chatIdPreview: '', hasBotToken: false };
   }
-
-  try {
-    const rawValue = window.localStorage.getItem(TELEGRAM_SETTINGS_KEY);
-    if (!rawValue) {
-      return { enabled: false, botToken: '', chatId: '' };
-    }
-    const parsedValue = JSON.parse(rawValue);
-    return {
-      enabled: Boolean(parsedValue.enabled),
-      botToken: parsedValue.botToken ?? '',
-      chatId: parsedValue.chatId ?? '',
-    };
-  } catch {
-    return { enabled: false, botToken: '', chatId: '' };
-  }
+  const payload = await response.json();
+  return payload.settings ?? { enabled: false, configured: false, chatIdPreview: '', hasBotToken: false };
 }
 
-export function saveTelegramSettings(settings) {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  const payload = {
-    enabled: Boolean(settings.enabled),
-    botToken: settings.botToken?.trim() ?? '',
-    chatId: settings.chatId?.trim() ?? '',
-  };
-  window.localStorage.setItem(TELEGRAM_SETTINGS_KEY, JSON.stringify(payload));
+export async function saveTelegramSettings(settings) {
+  return fetch('/api/telegram/settings', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      enabled: Boolean(settings.enabled),
+      botToken: settings.botToken?.trim() ?? '',
+      chatId: settings.chatId?.trim() ?? '',
+    }),
+  });
 }
 
 export async function sendTelegramAlert(alert) {
-  const settings = loadTelegramSettings();
   const telegramPayload = {
     title: `${alert.estado === 'HIGH' ? 'BUY ALERT' : 'WATCH ALERT'} · ${alert.symbol}`,
     market: alert.marketType,
@@ -91,37 +77,12 @@ export async function sendTelegramAlert(alert) {
     quantity: formatAlertNumber(alert.positionSizing?.quantity, 6),
   };
 
-  if (!settings.enabled || !settings.botToken || !settings.chatId) {
-    console.info('Telegram alert placeholder', telegramPayload);
-    return { ok: true, status: 'disabled' };
-  }
-
-  const message = [
-    telegramPayload.title,
-    `Market: ${telegramPayload.market}`,
-    `Exchange: ${telegramPayload.exchange}`,
-    `Score: ${telegramPayload.score}`,
-    `Narrative: ${telegramPayload.narrative}`,
-    `Decision: ${telegramPayload.decision}`,
-    `Avg Entry: ${telegramPayload.avgEntry}`,
-    `Stop Loss: ${telegramPayload.stopLoss}`,
-    `TP1: ${telegramPayload.tp1}`,
-    `TP2: ${telegramPayload.tp2}`,
-    `TP3: ${telegramPayload.tp3}`,
-    `Risk %: ${telegramPayload.riskPct}`,
-    `Position Size USD: ${telegramPayload.positionSizeUsd}`,
-    `Quantity: ${telegramPayload.quantity}`,
-  ].join('\n');
-
-  const response = await fetch(`https://api.telegram.org/bot${settings.botToken}/sendMessage`, {
+  const response = await fetch('/api/telegram/send', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      chat_id: settings.chatId,
-      text: message,
-    }),
+    body: JSON.stringify(telegramPayload),
   });
 
   if (!response.ok) {
