@@ -498,8 +498,8 @@ export default function DashboardPage() {
         positionSizing,
       });
       setTelegramStatus('Setup enviado correctamente.');
-    } catch {
-      setTelegramStatus('No se pudo enviar a Telegram. Revisa token y chat ID.');
+    } catch (error) {
+      setTelegramStatus(error?.message ? `Telegram error: ${error.message}` : 'No se pudo enviar a Telegram. Revisa token y chat ID.');
     }
   }
 

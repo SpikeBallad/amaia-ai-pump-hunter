@@ -86,7 +86,8 @@ export async function sendTelegramAlert(alert) {
   });
 
   if (!response.ok) {
-    throw new Error('Telegram delivery failed');
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.message ?? 'Telegram delivery failed');
   }
 
   return response.json();

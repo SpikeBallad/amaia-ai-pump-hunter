@@ -16,11 +16,14 @@ export async function GET() {
 }
 
 export async function POST(request) {
+  const cookieStore = cookies();
+  const settingsCookie = cookieStore.get(getTelegramCookieName())?.value;
+  const existingSettings = decryptTelegramSettings(settingsCookie);
   const payload = await request.json();
   const settings = {
     enabled: Boolean(payload.enabled),
-    botToken: payload.botToken ?? '',
-    chatId: payload.chatId ?? '',
+    botToken: payload.botToken?.trim() ? payload.botToken : existingSettings.botToken,
+    chatId: payload.chatId?.trim() ? payload.chatId : existingSettings.chatId,
   };
 
   const response = NextResponse.json({ ok: true, settings: sanitizeTelegramSettings(settings) });

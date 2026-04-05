@@ -45,10 +45,17 @@ export async function POST(request) {
     }),
   });
 
-  if (!telegramResponse.ok) {
-    return NextResponse.json({ ok: false, message: 'Telegram delivery failed.' }, { status: 502 });
-  }
+  const responsePayload = await telegramResponse.json().catch(() => null);
 
-  const responsePayload = await telegramResponse.json();
+  if (!telegramResponse.ok) {
+    return NextResponse.json(
+      {
+        ok: false,
+        message: responsePayload?.description ?? 'Telegram delivery failed.',
+        details: responsePayload,
+      },
+      { status: 502 }
+    );
+  }
   return NextResponse.json({ ok: true, result: responsePayload });
 }
