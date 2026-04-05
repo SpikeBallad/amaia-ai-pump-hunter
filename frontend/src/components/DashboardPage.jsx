@@ -175,7 +175,14 @@ function TradeDeskModal({ open, title, subtitle, onClose, children }) {
             Close
           </button>
         </div>
-        <div className="max-h-[calc(88vh-100px)] overflow-y-auto px-6 py-6">{children}</div>
+        <div className="border-b border-white/6 bg-white/[0.02] px-6 py-3">
+          <div className="flex flex-wrap items-center gap-3 text-[11px] uppercase tracking-[0.22em] text-slate-500">
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">Desk Terminal</span>
+            <span className="rounded-full border border-cyan-500/15 bg-cyan-500/8 px-3 py-1 text-cyan-200">Quant View</span>
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">Focused Module</span>
+          </div>
+        </div>
+        <div className="max-h-[calc(88vh-148px)] overflow-y-auto px-6 py-6">{children}</div>
       </div>
     </div>
   );
