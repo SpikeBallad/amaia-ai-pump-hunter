@@ -345,6 +345,29 @@ function isMacroBottomBuy(row) {
   return row.estado === 'HIGH' && dumpPct >= 82 && rangePct <= 10 && atrRatio <= 0.018;
 }
 
+function buildTradePlanText(row, tradePlan, positionSizing, suggestedEntries, chartRange) {
+  if (!row || !tradePlan) return '';
+
+  return [
+    `AMAIA AI PUMP HUNTER PRO · ${row.symbol}`,
+    `Range: ${chartRange}`,
+    `Exchange: ${row.exchange?.toUpperCase() ?? '--'}`,
+    `Market: ${row.marketType ?? '--'}`,
+    `Decision: ${tradePlan.decision}`,
+    `Avg Entry: ${formatPrice(tradePlan.avgEntry)}`,
+    `Stop Loss: ${formatPrice(tradePlan.stopPrice)}`,
+    `TP1: ${formatPrice(tradePlan.takeProfits[0]?.price)}`,
+    `TP2: ${formatPrice(tradePlan.takeProfits[1]?.price)}`,
+    `TP3: ${formatPrice(tradePlan.takeProfits[2]?.price)}`,
+    ...suggestedEntries.map((entry) => `${entry.label}: ${formatPrice(entry.price)}`),
+    positionSizing ? `Risk Budget: ${formatPrice(positionSizing.riskBudgetUsd)}` : null,
+    positionSizing ? `Position Size: ${formatPrice(positionSizing.positionSizeUsd)}` : null,
+    positionSizing ? `Quantity: ${positionSizing.quantity.toFixed(4)}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -366,6 +389,7 @@ export default function DashboardPage() {
   const [telegramStatus, setTelegramStatus] = useState('');
   const [telegramConfigured, setTelegramConfigured] = useState(false);
   const [telegramChatPreview, setTelegramChatPreview] = useState('');
+  const [savedSetups, setSavedSetups] = useState([]);
   const {
     backendStatus,
     moduleFilter,
@@ -419,6 +443,19 @@ export default function DashboardPage() {
     }
 
     hydrateTelegramSettings();
+  }, []);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem('amaia-saved-setups');
+      if (!stored) return;
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        setSavedSetups(parsed);
+      }
+    } catch {
+      // Ignore local history parse issues.
+    }
   }, []);
 
   useEffect(() => {
@@ -579,6 +616,43 @@ export default function DashboardPage() {
       setTelegramStatus('Mensaje de prueba enviado correctamente.');
     } catch (error) {
       setTelegramStatus(error?.message ? `Telegram error: ${error.message}` : 'No se pudo enviar el mensaje de prueba.');
+    }
+  }
+
+  async function handleCopyTradePlan() {
+    const text = buildTradePlanText(strongestRow, tradePlan, positionSizing, suggestedEntries, chartRange);
+    if (!text) return;
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setTelegramStatus('Trade plan copiado al portapapeles.');
+    } catch {
+      setTelegramStatus('No se pudo copiar el trade plan.');
+    }
+  }
+
+  function handleSaveSetupSnapshot() {
+    if (!strongestRow || !tradePlan) return;
+
+    const snapshot = {
+      id: `${strongestRow.id}-${Date.now()}`,
+      symbol: strongestRow.symbol,
+      marketType: strongestRow.marketType,
+      exchange: strongestRow.exchange,
+      decision: tradePlan.decision,
+      score: strongestRow.score,
+      avgEntry: tradePlan.avgEntry,
+      stopLoss: tradePlan.stopPrice,
+      tp1: tradePlan.takeProfits[0]?.price ?? null,
+      createdAt: new Date().toISOString(),
+    };
+
+    const nextSaved = [snapshot, ...savedSetups].slice(0, 8);
+    setSavedSetups(nextSaved);
+    try {
+      window.localStorage.setItem('amaia-saved-setups', JSON.stringify(nextSaved));
+    } catch {
+      // Ignore local storage limits.
     }
   }
 
@@ -1476,6 +1550,40 @@ export default function DashboardPage() {
                 ) : null}
               </div>
             </div>
+
+            <div className="glass-panel rounded-[36px] p-6">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Saved Setups</p>
+                <h2 className="mt-2 text-xl font-semibold text-white">Local History</h2>
+              </div>
+              <div className="mt-5 space-y-3">
+                {savedSetups.map((item) => (
+                  <div key={item.id} className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-white">{item.symbol}</p>
+                        <p className="mt-1 text-xs uppercase tracking-[0.22em] text-slate-500">
+                          {item.exchange?.toUpperCase()} · {item.marketType}
+                        </p>
+                      </div>
+                      <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-200">
+                        {item.decision}
+                      </span>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-sm text-slate-400 sm:grid-cols-3">
+                      <span>Score {item.score}</span>
+                      <span>Entry {formatPrice(item.avgEntry)}</span>
+                      <span>Stop {formatPrice(item.stopLoss)}</span>
+                    </div>
+                  </div>
+                ))}
+                {savedSetups.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-5 text-sm text-slate-400">
+                    Aun no has guardado setups. Usa `Save Setup` desde el modal Execution Plan.
+                  </div>
+                ) : null}
+              </div>
+            </div>
           </div>
         </section>
 
@@ -1531,6 +1639,23 @@ export default function DashboardPage() {
                       <p className="mt-2 text-lg font-semibold text-white">{strongestRow?.exchange?.toUpperCase() ?? '--'}</p>
                     </div>
                   </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={handleCopyTradePlan}
+                    className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-400/15"
+                  >
+                    Copy Trade Plan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveSetupSnapshot}
+                    className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/[0.07]"
+                  >
+                    Save Setup
+                  </button>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
