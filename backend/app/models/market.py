@@ -129,11 +129,21 @@ class TopOpportunitiesResponse(BaseModel):
     total: int
 
 
+class CoverageStats(BaseModel):
+    total_pairs_discovered: int
+    eligible_pairs: int
+    refreshed_in_cycle: int
+    cached_pairs: int
+    excluded_pumped_pairs: int
+    coverage_pct: float
+
+
 class MarketOverviewResponse(BaseModel):
     scans: list[ScanResult]
     top: list[TopOpportunity]
     watchlist: list[TopOpportunity]
     total: int
+    coverage: CoverageStats
     generated_at: datetime
     cache_ttl_seconds: int
 

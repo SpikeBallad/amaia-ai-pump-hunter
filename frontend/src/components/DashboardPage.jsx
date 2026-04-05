@@ -263,6 +263,7 @@ export default function DashboardPage() {
     lastUpdated,
     socketStatus,
     summary,
+    coverage,
     refreshMarketData,
   } = useMarket();
 
@@ -385,6 +386,7 @@ export default function DashboardPage() {
         : moduleFilter === 'spot'
           ? 'Spot Radar'
           : 'Cross Market';
+  const coveragePctLabel = typeof coverage?.coverage_pct === 'number' ? `${coverage.coverage_pct.toFixed(1)}%` : '--';
 
   const formattedDate = useMemo(
     () =>
@@ -498,6 +500,32 @@ export default function DashboardPage() {
                 <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
                   <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Futures</p>
                   <p className="mt-3 text-lg font-semibold text-fuchsia-300">{summary.futuresCount}</p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr_0.9fr_0.9fr_0.9fr]">
+                <div className="rounded-[28px] border border-cyan-400/15 bg-cyan-400/[0.05] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Coverage</p>
+                  <p className="mt-3 text-2xl font-semibold text-cyan-200">{coveragePctLabel}</p>
+                  <p className="mt-2 text-sm text-slate-400">
+                    {coverage ? `${coverage.cached_pairs + coverage.refreshed_in_cycle} de ${coverage.eligible_pairs} elegibles ya analizados.` : 'Esperando metricas del scanner.'}
+                  </p>
+                </div>
+                <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Pairs Discovered</p>
+                  <p className="mt-3 text-lg font-semibold text-white">{coverage?.total_pairs_discovered ?? '--'}</p>
+                </div>
+                <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Eligible</p>
+                  <p className="mt-3 text-lg font-semibold text-emerald-300">{coverage?.eligible_pairs ?? '--'}</p>
+                </div>
+                <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Refreshed Cycle</p>
+                  <p className="mt-3 text-lg font-semibold text-cyan-300">{coverage?.refreshed_in_cycle ?? '--'}</p>
+                </div>
+                <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Excluded Pumped</p>
+                  <p className="mt-3 text-lg font-semibold text-rose-300">{coverage?.excluded_pumped_pairs ?? '--'}</p>
                 </div>
               </div>
 

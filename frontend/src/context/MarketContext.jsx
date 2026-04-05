@@ -114,6 +114,7 @@ export function MarketProvider({ children }) {
   const [alertLog, setAlertLog] = useState([]);
   const [activeAlert, setActiveAlert] = useState(null);
   const [cacheStats, setCacheStats] = useState(null);
+  const [coverage, setCoverage] = useState(null);
 
   const resolvedExchange = exchangeFilter === 'all' ? 'auto' : exchangeFilter;
   const resolvedMarketType = marketTypeFilter === 'all' ? 'all' : marketTypeFilter;
@@ -239,6 +240,7 @@ export function MarketProvider({ children }) {
         setRows(nextRows);
         setTopRows(overviewData.top ?? []);
         setWatchlistRows(overviewData.watchlist ?? []);
+        setCoverage(overviewData.coverage ?? null);
         setLastUpdated(overviewData.generated_at ? new Date(overviewData.generated_at) : new Date());
         setCacheStats(cacheStatsData);
         setError('');
@@ -470,6 +472,7 @@ export function MarketProvider({ children }) {
       lastUpdated,
       socketStatus,
       summary,
+      coverage,
       refreshMarketData,
     }),
     [
@@ -496,6 +499,7 @@ export function MarketProvider({ children }) {
       lastUpdated,
       socketStatus,
       summary,
+      coverage,
       refreshMarketData,
       invalidateMarketCache,
     ]

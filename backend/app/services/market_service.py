@@ -7,6 +7,7 @@ from app.core.narratives import get_narrative, get_narrative_label
 from app.models.market import (
     CacheInvalidateResponse,
     CacheStatsResponse,
+    CoverageStats,
     MarketOverviewResponse,
     MarketRequestType,
     MarketTypeFilter,
@@ -488,6 +489,40 @@ async def _build_scan_targets(
     return targets
 
 
+async def _collect_universe_metrics(
+    exchange: str,
+    market_type: MarketTypeFilter,
+) -> dict[str, int]:
+    total_pairs_discovered = 0
+    eligible_pairs = 0
+    excluded_pumped_pairs = 0
+
+    for request_market_type in _build_market_requests(market_type):
+        for exchange_name in _requested_exchanges(exchange):
+            try:
+                symbols, snapshots = await asyncio.gather(
+                    discover_symbols(exchange_name, request_market_type),
+                    fetch_market_snapshots(exchange_name, request_market_type),
+                )
+            except Exception:
+                continue
+
+            capped_symbols = _apply_scan_cap(symbols)
+            total_pairs_discovered += len(capped_symbols)
+            for symbol in capped_symbols:
+                change_24h = float((snapshots.get(symbol) or {}).get("change_24h", 0.0))
+                if change_24h > 25:
+                    excluded_pumped_pairs += 1
+                else:
+                    eligible_pairs += 1
+
+    return {
+        "total_pairs_discovered": total_pairs_discovered,
+        "eligible_pairs": eligible_pairs,
+        "excluded_pumped_pairs": excluded_pumped_pairs,
+    }
+
+
 def _target_cache_key(symbol: str, timeframe: TimeframeName, exchange: str, market_type: MarketRequestType) -> tuple[str, str, str, str]:
     return (symbol.upper(), timeframe, exchange, market_type)
 
@@ -589,7 +624,10 @@ async def get_market_overview(
     if cached_overview is not None:
         return cached_overview
 
-    targets = await _build_scan_targets(exchange=exchange, market_type=market_type)
+    targets, universe_metrics = await asyncio.gather(
+        _build_scan_targets(exchange=exchange, market_type=market_type),
+        _collect_universe_metrics(exchange=exchange, market_type=market_type),
+    )
     refresh_targets = _select_refresh_targets(targets, timeframe, exchange, market_type)
     semaphore = asyncio.Semaphore(settings.scan_request_concurrency)
 
@@ -618,12 +656,23 @@ async def get_market_overview(
 
     top = [_to_top_opportunity(scan, index) for index, scan in enumerate(top_scans, start=1)]
     watchlist = [_to_top_opportunity(scan, index) for index, scan in enumerate(watchlist_scans, start=1)]
+    cached_pairs = max(0, len(scan_map) - len([scan for scan in refreshed_scans if scan is not None]))
+    eligible_pairs = universe_metrics["eligible_pairs"]
+    coverage_pct = round((len(scan_map) / eligible_pairs) * 100, 2) if eligible_pairs else 0.0
 
     overview = MarketOverviewResponse(
         scans=actionable_scans,
         top=top,
         watchlist=watchlist,
         total=len(actionable_scans),
+        coverage=CoverageStats(
+            total_pairs_discovered=universe_metrics["total_pairs_discovered"],
+            eligible_pairs=eligible_pairs,
+            refreshed_in_cycle=len([scan for scan in refreshed_scans if scan is not None]),
+            cached_pairs=cached_pairs,
+            excluded_pumped_pairs=universe_metrics["excluded_pumped_pairs"],
+            coverage_pct=coverage_pct,
+        ),
         generated_at=_utc_now(),
         cache_ttl_seconds=settings.overview_cache_ttl_seconds,
     )
