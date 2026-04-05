@@ -8,8 +8,8 @@ router = APIRouter(tags=["market"])
 
 
 @router.get("/pairs", response_model=PairListResponse)
-def get_pairs() -> PairListResponse:
-    return list_pairs()
+async def get_pairs() -> PairListResponse:
+    return await list_pairs()
 
 
 @router.get("/scan", response_model=ScanResult)
@@ -28,7 +28,7 @@ async def get_top(
     timeframe: TimeframeName = Query(default="4H"),
     exchange: ExchangeName = Query(default="auto"),
     market_type: MarketTypeFilter = Query(default="spot"),
-    limit: int = Query(default=10, ge=1, le=settings.max_scan_pairs),
+    limit: int = Query(default=10, ge=1, le=settings.overview_max_limit),
 ) -> TopOpportunitiesResponse:
     return await get_top_opportunities(timeframe=timeframe, exchange=exchange, market_type=market_type, limit=limit)
 
@@ -38,7 +38,7 @@ async def get_overview(
     timeframe: TimeframeName = Query(default="4H"),
     exchange: ExchangeName = Query(default="auto"),
     market_type: MarketTypeFilter = Query(default="spot"),
-    limit: int = Query(default=10, ge=1, le=settings.max_scan_pairs),
+    limit: int = Query(default=10, ge=1, le=settings.overview_max_limit),
 ) -> MarketOverviewResponse:
     return await get_market_overview(timeframe=timeframe, exchange=exchange, market_type=market_type, limit=limit)
 

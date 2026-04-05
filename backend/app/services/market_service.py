@@ -17,7 +17,7 @@ from app.models.market import (
     TopOpportunitiesResponse,
     TopOpportunity,
 )
-from app.services.exchange_service import fetch_ohlcv
+from app.services.exchange_service import discover_symbols, fetch_market_snapshots, fetch_ohlcv, invalidate_exchange_cache
 
 _scan_cache: dict[tuple[str, str, str, str], tuple[datetime, ScanResult]] = {}
 _overview_cache: dict[tuple[str, str, str, int], tuple[datetime, MarketOverviewResponse]] = {}
@@ -27,22 +27,50 @@ _scan_cache_hits = 0
 _scan_cache_misses = 0
 _overview_cache_hits = 0
 _overview_cache_misses = 0
+_scan_rotation_cursors: dict[tuple[str, str, str], int] = {}
+
+def _apply_scan_cap(symbols: list[str]) -> list[str]:
+    if settings.scan_all_pairs or settings.max_scan_pairs <= 0:
+        return symbols
+    return symbols[: settings.max_scan_pairs]
 
 
-def list_pairs() -> PairListResponse:
-    pairs = [
-        PairItem(
-            symbol=symbol,
-            base_asset=symbol.removesuffix("USDT"),
-            quote_asset="USDT",
-            supported_exchanges=["binance", "mexc"],
-            supported_markets=["BINANCE_SPOT", "BINANCE_FUTURES", "MEXC_SPOT", "MEXC_FUTURES"],
-            supported_instruments=["SPOT", "PERPETUAL"],
-            narrative=get_narrative(symbol),
-            narrative_label=get_narrative_label(symbol),
-        )
-        for symbol in settings.pair_universe[: settings.max_scan_pairs]
-    ]
+def _requested_exchanges(exchange: str) -> list[str]:
+    return ["binance", "mexc"] if exchange == "auto" else [exchange]
+
+
+async def list_pairs() -> PairListResponse:
+    pair_map: dict[str, PairItem] = {}
+    for market_type in ("spot", "futures"):
+        for exchange_name in ("binance", "mexc"):
+            try:
+                symbols = _apply_scan_cap(await discover_symbols(exchange_name, market_type))
+            except Exception:
+                continue
+            for symbol in symbols:
+                pair = pair_map.get(symbol)
+                if pair is None:
+                    pair = PairItem(
+                        symbol=symbol,
+                        base_asset=symbol.removesuffix("USDT"),
+                        quote_asset="USDT",
+                        supported_exchanges=[],
+                        supported_markets=[],
+                        supported_instruments=[],
+                        narrative=get_narrative(symbol),
+                        narrative_label=get_narrative_label(symbol),
+                    )
+                    pair_map[symbol] = pair
+                if exchange_name not in pair.supported_exchanges:
+                    pair.supported_exchanges.append(exchange_name)
+                market_name = f"{exchange_name.upper()}_{market_type.upper()}"
+                instrument_name = "SPOT" if market_type == "spot" else "PERPETUAL"
+                if market_name not in pair.supported_markets:
+                    pair.supported_markets.append(market_name)  # type: ignore[arg-type]
+                if instrument_name not in pair.supported_instruments:
+                    pair.supported_instruments.append(instrument_name)  # type: ignore[arg-type]
+
+    pairs = sorted(pair_map.values(), key=lambda item: item.symbol)
     return PairListResponse(
         pairs=pairs,
         total=len(pairs),
@@ -303,16 +331,22 @@ def _utc_now() -> datetime:
 
 def _get_cached_scan(cache_key: tuple[str, str, str, str]) -> ScanResult | None:
     global _scan_cache_hits, _scan_cache_misses
+    scan = _peek_cached_scan(cache_key)
+    if scan is None:
+        _scan_cache_misses += 1
+        return None
+    _scan_cache_hits += 1
+    return scan
+
+
+def _peek_cached_scan(cache_key: tuple[str, str, str, str]) -> ScanResult | None:
     cached_entry = _scan_cache.get(cache_key)
     if cached_entry is None:
-        _scan_cache_misses += 1
         return None
     expires_at, scan = cached_entry
     if expires_at <= _utc_now():
         _scan_cache.pop(cache_key, None)
-        _scan_cache_misses += 1
         return None
-    _scan_cache_hits += 1
     return scan
 
 
@@ -414,6 +448,92 @@ def _build_market_requests(market_type: MarketTypeFilter) -> list[MarketRequestT
     return [market_type]
 
 
+async def _build_scan_targets(
+    exchange: str,
+    market_type: MarketTypeFilter,
+) -> list[tuple[str, str, MarketRequestType, dict[str, float]]]:
+    targets: list[tuple[str, str, MarketRequestType, dict[str, float]]] = []
+    for request_market_type in _build_market_requests(market_type):
+        for exchange_name in _requested_exchanges(exchange):
+            try:
+                symbols, snapshots = await asyncio.gather(
+                    discover_symbols(exchange_name, request_market_type),
+                    fetch_market_snapshots(exchange_name, request_market_type),
+                )
+            except Exception:
+                continue
+
+            eligible_symbols = []
+            for symbol in _apply_scan_cap(symbols):
+                snapshot = snapshots.get(symbol) or {}
+                change_24h = float(snapshot.get("change_24h", 0.0))
+                if change_24h > 25:
+                    continue
+                eligible_symbols.append(
+                    (
+                        symbol,
+                        exchange_name,
+                        request_market_type,
+                        {
+                            "price": float(snapshot.get("price", 0.0)),
+                            "change_24h": change_24h,
+                            "quote_volume": float(snapshot.get("quote_volume", 0.0)),
+                        },
+                    )
+                )
+
+            eligible_symbols.sort(key=lambda item: (item[3]["quote_volume"] or 0.0, abs(item[3]["change_24h"]), item[0]))
+            targets.extend(eligible_symbols)
+
+    return targets
+
+
+def _target_cache_key(symbol: str, timeframe: TimeframeName, exchange: str, market_type: MarketRequestType) -> tuple[str, str, str, str]:
+    return (symbol.upper(), timeframe, exchange, market_type)
+
+
+def _collect_cached_scans(
+    targets: list[tuple[str, str, MarketRequestType, dict[str, float]]],
+    timeframe: TimeframeName,
+) -> list[ScanResult]:
+    cached_scans: list[ScanResult] = []
+    for symbol, exchange_name, request_market_type, _snapshot in targets:
+        cached_scan = _peek_cached_scan(_target_cache_key(symbol, timeframe, exchange_name, request_market_type))
+        if cached_scan is not None:
+            cached_scans.append(cached_scan)
+    return cached_scans
+
+
+def _select_refresh_targets(
+    targets: list[tuple[str, str, MarketRequestType, dict[str, float]]],
+    timeframe: TimeframeName,
+    exchange: str,
+    market_type: MarketTypeFilter,
+) -> list[tuple[str, str, MarketRequestType, dict[str, float]]]:
+    if not targets:
+        return []
+
+    missing_or_stale = [
+        target
+        for target in targets
+        if _peek_cached_scan(_target_cache_key(target[0], timeframe, target[1], target[2])) is None
+    ]
+    if len(missing_or_stale) <= settings.scan_refresh_batch_size:
+        return missing_or_stale
+
+    cursor_key = (exchange, market_type, timeframe)
+    cursor = _scan_rotation_cursors.get(cursor_key, 0)
+    batch_size = min(settings.scan_refresh_batch_size, len(missing_or_stale))
+    if cursor >= len(missing_or_stale):
+        cursor = 0
+    end_index = cursor + batch_size
+    selected = missing_or_stale[cursor:end_index]
+    if len(selected) < batch_size:
+        selected.extend(missing_or_stale[: batch_size - len(selected)])
+    _scan_rotation_cursors[cursor_key] = (cursor + batch_size) % len(missing_or_stale)
+    return selected
+
+
 def _ranking_key(scan: ScanResult) -> tuple[float, ...]:
     attention_score = max(0.0, 100 - abs(scan.change_24h))
     return (
@@ -469,20 +589,29 @@ async def get_market_overview(
     if cached_overview is not None:
         return cached_overview
 
-    symbols = settings.pair_universe[: settings.max_scan_pairs]
-    market_requests = _build_market_requests(market_type)
-    semaphore = asyncio.Semaphore(8)
+    targets = await _build_scan_targets(exchange=exchange, market_type=market_type)
+    refresh_targets = _select_refresh_targets(targets, timeframe, exchange, market_type)
+    semaphore = asyncio.Semaphore(settings.scan_request_concurrency)
 
-    async def _scan(symbol: str, request_market_type: MarketRequestType) -> ScanResult | None:
+    async def _scan(target: tuple[str, str, MarketRequestType, dict[str, float]]) -> ScanResult | None:
+        symbol, exchange_name, request_market_type, _snapshot = target
         async with semaphore:
             try:
-                return await scan_pair(symbol=symbol, timeframe=timeframe, exchange=exchange, market_type=request_market_type)
+                return await scan_pair(symbol=symbol, timeframe=timeframe, exchange=exchange_name, market_type=request_market_type)
             except Exception:
                 return None
 
-    scans = await asyncio.gather(*[_scan(symbol, request_market_type) for request_market_type in market_requests for symbol in symbols])
-    valid_scans = [scan for scan in scans if scan is not None]
-    actionable_scans = [scan for scan in valid_scans if scan.excluded_reason is None]
+    refreshed_scans = await asyncio.gather(*[_scan(target) for target in refresh_targets]) if refresh_targets else []
+    cached_scans = _collect_cached_scans(targets, timeframe)
+
+    scan_map: dict[tuple[str, str, str], ScanResult] = {
+        (scan.exchange, scan.market_type, scan.symbol): scan for scan in cached_scans
+    }
+    for scan in refreshed_scans:
+        if scan is not None:
+            scan_map[(scan.exchange, scan.market_type, scan.symbol)] = scan
+
+    actionable_scans = [scan for scan in scan_map.values() if scan.excluded_reason is None]
     ranked_scans = sorted(actionable_scans, key=_ranking_key, reverse=True)
     top_scans = ranked_scans[:limit]
     watchlist_scans = [scan for scan in ranked_scans if scan.score >= 8 and not scan.is_breaking_out][:limit]
@@ -540,6 +669,8 @@ async def invalidate_cache() -> CacheInvalidateResponse:
         _scan_cache.clear()
     async with _overview_cache_lock:
         _overview_cache.clear()
+    _scan_rotation_cursors.clear()
+    invalidate_exchange_cache()
     return CacheInvalidateResponse(
         cleared=True,
         scan_cache_entries_removed=scan_removed,
