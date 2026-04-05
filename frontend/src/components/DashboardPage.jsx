@@ -130,15 +130,40 @@ function MetricCard({ label, value, detail, tone }) {
 }
 
 function TradeDeskModal({ open, title, subtitle, onClose, children }) {
+  useEffect(() => {
+    if (!open) return undefined;
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_24%),rgba(3,6,18,0.82)] px-4 py-8 backdrop-blur-xl">
-      <div className="relative max-h-[88vh] w-full max-w-4xl overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(8,15,35,0.98),rgba(5,8,22,0.96))] shadow-[0_32px_120px_rgba(2,8,24,0.72)]">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_24%),rgba(3,6,18,0.82)] px-4 py-8 backdrop-blur-xl"
+      onClick={onClose}
+    >
+      <div
+        className="relative max-h-[88vh] w-full max-w-4xl overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(8,15,35,0.98),rgba(5,8,22,0.96))] shadow-[0_32px_120px_rgba(2,8,24,0.72)]"
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.08),transparent_28%),radial-gradient(circle_at_85%_18%,rgba(16,185,129,0.08),transparent_24%)]" />
         <div className="flex items-start justify-between gap-4 border-b border-white/8 px-6 py-5">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Quantum Workspace</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-cyan-300 shadow-[0_0_18px_rgba(103,232,249,0.9)]" />
+              <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Quantum Workspace</p>
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-slate-400">
+                ESC to close
+              </span>
+            </div>
             <h3 className="mt-2 text-2xl font-semibold text-white">{title}</h3>
             {subtitle ? <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-400">{subtitle}</p> : null}
           </div>
