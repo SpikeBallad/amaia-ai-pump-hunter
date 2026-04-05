@@ -842,195 +842,211 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     <div className="mt-4 rounded-[22px] border border-emerald-500/15 bg-emerald-500/8 p-4">
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="max-w-2xl">
                           <p className="text-[11px] uppercase tracking-[0.24em] text-emerald-200/70">Buy Ladder</p>
-                          <p className="mt-2 text-sm text-emerald-50">
+                          <p className="mt-2 text-sm leading-6 text-emerald-50">
                             Tres entradas limit sugeridas para {strongestRow?.symbol ?? 'el activo seleccionado'}, adaptadas al rango {chartRange}.
                           </p>
                         </div>
                         {macroBottomBuy ? (
-                          <span className="rounded-full border border-fuchsia-500/20 bg-fuchsia-500/12 px-3 py-1 text-xs font-semibold text-fuchsia-200">
+                          <span className="inline-flex rounded-full border border-fuchsia-500/20 bg-fuchsia-500/12 px-3 py-1 text-xs font-semibold text-fuchsia-200">
                             MACRO BOTTOM BUY
                           </span>
                         ) : null}
                       </div>
-                        <div className="mt-4 grid gap-3 md:grid-cols-3">
-                          {suggestedEntries.map((entry) => (
-                            <div key={entry.label} className="rounded-2xl border border-white/8 bg-white/[0.04] p-4">
-                              <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{entry.label}</p>
-                              <p className="mt-2 text-lg font-semibold text-white">{formatPrice(entry.price)}</p>
-                              <p className="mt-2 text-sm text-slate-400">Limit order · {entry.offsetPct.toFixed(2)}% below spot</p>
+
+                      <div className="mt-5 grid gap-4 lg:grid-cols-3">
+                        {suggestedEntries.map((entry) => (
+                          <div key={entry.label} className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5">
+                            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{entry.label}</p>
+                            <p className="mt-3 text-2xl font-semibold text-white">{formatPrice(entry.price)}</p>
+                            <p className="mt-3 text-sm leading-6 text-slate-400">
+                              Limit order con {entry.offsetPct.toFixed(2)}% de descuento frente al spot actual.
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {tradePlan ? (
+                        <div className="mt-6 grid gap-5 2xl:grid-cols-[1.2fr_0.8fr]">
+                          <div className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5">
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                              <div className="max-w-2xl">
+                                <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Execution Plan</p>
+                                <p className="mt-2 text-sm leading-7 text-slate-300">{tradePlan.decisionReason}</p>
+                              </div>
+                              <span
+                                className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
+                                  tradePlan.decision === 'Entry'
+                                    ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
+                                    : tradePlan.decision === 'Monitor'
+                                      ? 'border-amber-500/20 bg-amber-500/10 text-amber-200'
+                                      : 'border-rose-500/20 bg-rose-500/10 text-rose-200'
+                                }`}
+                              >
+                                {tradePlan.decision}
+                              </span>
                             </div>
-                          ))}
-                        </div>
-                        {tradePlan ? (
-                          <div className="mt-5 grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-                            <div className="rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
-                              <div className="flex flex-wrap items-center justify-between gap-3">
-                                <div>
-                                  <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Execution Plan</p>
-                                  <p className="mt-2 text-sm text-slate-300">{tradePlan.decisionReason}</p>
-                                </div>
-                                <span
-                                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                                    tradePlan.decision === 'Entry'
-                                      ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
-                                      : tradePlan.decision === 'Monitor'
-                                        ? 'border-amber-500/20 bg-amber-500/10 text-amber-200'
-                                        : 'border-rose-500/20 bg-rose-500/10 text-rose-200'
-                                  }`}
-                                >
-                                  {tradePlan.decision}
-                                </span>
+
+                            <div className="mt-5 grid gap-4 md:grid-cols-3">
+                              <div className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
+                                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Avg Entry</p>
+                                <p className="mt-3 text-2xl font-semibold text-white">{formatPrice(tradePlan.avgEntry)}</p>
                               </div>
-                                <div className="mt-4 grid gap-3 md:grid-cols-3">
-                                  <div className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
-                                    <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Avg Entry</p>
-                                    <p className="mt-2 text-lg font-semibold text-white">{formatPrice(tradePlan.avgEntry)}</p>
-                                  </div>
-                                  <div className="rounded-2xl border border-rose-500/15 bg-rose-500/8 p-4">
-                                    <p className="text-xs uppercase tracking-[0.22em] text-rose-200/70">Stop Loss</p>
-                                    <p className="mt-2 text-lg font-semibold text-rose-100">{formatPrice(tradePlan.stopPrice)}</p>
-                                    <p className="mt-2 text-sm text-rose-200/70">Risk {tradePlan.maxRiskPct.toFixed(2)}%</p>
-                                  </div>
-                                  <div className="rounded-2xl border border-cyan-500/15 bg-cyan-500/8 p-4">
-                                    <p className="text-xs uppercase tracking-[0.22em] text-cyan-200/70">Position Risk</p>
-                                    <p className="mt-2 text-lg font-semibold text-cyan-100">{tradePlan.allocationPct}% size</p>
-                                    <p className="mt-2 text-sm text-cyan-200/70">RR max {tradePlan.riskRewardAtTp3}R</p>
-                                  </div>
-                                </div>
-                                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                                  <label className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
-                                    <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Account Capital</p>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      step="100"
-                                      value={accountCapital}
-                                      onChange={(event) => setAccountCapital(event.target.value)}
-                                      className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
-                                    />
-                                  </label>
-                                  <label className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
-                                    <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Risk Per Trade %</p>
-                                    <input
-                                      type="number"
-                                      min="0.1"
-                                      max="10"
-                                      step="0.1"
-                                      value={riskPercentPerTrade}
-                                      onChange={(event) => setRiskPercentPerTrade(event.target.value)}
-                                      className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
-                                    />
-                                  </label>
-                                </div>
-                                {positionSizing ? (
-                                  <div className="mt-4 grid gap-3 md:grid-cols-3">
-                                    <div className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
-                                      <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Risk Budget</p>
-                                      <p className="mt-2 text-lg font-semibold text-white">{formatPrice(positionSizing.riskBudgetUsd)}</p>
-                                    </div>
-                                    <div className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
-                                      <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Position Size</p>
-                                      <p className="mt-2 text-lg font-semibold text-white">{formatPrice(positionSizing.positionSizeUsd)}</p>
-                                    </div>
-                                    <div className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
-                                      <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Quantity</p>
-                                      <p className="mt-2 text-lg font-semibold text-white">{positionSizing.quantity.toFixed(4)}</p>
-                                    </div>
-                                  </div>
-                                ) : null}
+                              <div className="rounded-[22px] border border-rose-500/15 bg-rose-500/8 p-5">
+                                <p className="text-xs uppercase tracking-[0.22em] text-rose-200/70">Stop Loss</p>
+                                <p className="mt-3 text-2xl font-semibold text-rose-100">{formatPrice(tradePlan.stopPrice)}</p>
+                                <p className="mt-3 text-sm text-rose-200/70">Risk {tradePlan.maxRiskPct.toFixed(2)}%</p>
                               </div>
-                            <div className="rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
+                              <div className="rounded-[22px] border border-cyan-500/15 bg-cyan-500/8 p-5">
+                                <p className="text-xs uppercase tracking-[0.22em] text-cyan-200/70">Position Risk</p>
+                                <p className="mt-3 text-2xl font-semibold text-cyan-100">{tradePlan.allocationPct}% size</p>
+                                <p className="mt-3 text-sm text-cyan-200/70">RR max {tradePlan.riskRewardAtTp3}R</p>
+                              </div>
+                            </div>
+
+                            <div className="mt-5 grid gap-4 md:grid-cols-2">
+                              <label className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
+                                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Account Capital</p>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="100"
+                                  value={accountCapital}
+                                  onChange={(event) => setAccountCapital(event.target.value)}
+                                  className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
+                                />
+                              </label>
+                              <label className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
+                                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Risk Per Trade %</p>
+                                <input
+                                  type="number"
+                                  min="0.1"
+                                  max="10"
+                                  step="0.1"
+                                  value={riskPercentPerTrade}
+                                  onChange={(event) => setRiskPercentPerTrade(event.target.value)}
+                                  className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
+                                />
+                              </label>
+                            </div>
+
+                            {positionSizing ? (
+                              <div className="mt-5 grid gap-4 md:grid-cols-3">
+                                <div className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
+                                  <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Risk Budget</p>
+                                  <p className="mt-3 text-2xl font-semibold text-white">{formatPrice(positionSizing.riskBudgetUsd)}</p>
+                                </div>
+                                <div className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
+                                  <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Position Size</p>
+                                  <p className="mt-3 text-2xl font-semibold text-white">{formatPrice(positionSizing.positionSizeUsd)}</p>
+                                </div>
+                                <div className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
+                                  <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Quantity</p>
+                                  <p className="mt-3 text-2xl font-semibold text-white">{positionSizing.quantity.toFixed(4)}</p>
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <div className="grid gap-5">
+                            <div className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5">
                               <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Take Profit Ladder</p>
-                              <div className="mt-4 grid gap-3">
+                              <div className="mt-5 grid gap-4">
                                 {tradePlan.takeProfits.map((target) => (
-                                  <div key={target.label} className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
+                                  <div key={target.label} className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
                                     <div className="flex items-center justify-between gap-3">
                                       <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{target.label}</p>
-                                      <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-200">
+                                      <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-200">
                                         {target.rewardMultiple.toFixed(1)}R
                                       </span>
                                     </div>
-                                    <p className="mt-2 text-lg font-semibold text-white">{formatPrice(target.price)}</p>
+                                    <p className="mt-3 text-2xl font-semibold text-white">{formatPrice(target.price)}</p>
                                   </div>
                                 ))}
                               </div>
-                              <div className="mt-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.06] p-4">
-                                <div className="flex items-center justify-between gap-3">
-                                  <div>
-                                    <p className="text-[11px] uppercase tracking-[0.24em] text-emerald-200/70">Telegram Link</p>
-                                    <p className="mt-2 text-sm text-slate-300">Conecta tu bot personal y envia el setup activo a tu chat.</p>
+                            </div>
+
+                            <div className="rounded-[24px] border border-emerald-500/15 bg-emerald-500/[0.06] p-5">
+                              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                <div className="max-w-xl">
+                                  <p className="text-[11px] uppercase tracking-[0.24em] text-emerald-200/70">Telegram Link</p>
+                                  <p className="mt-2 text-sm leading-7 text-slate-300">Conecta tu bot personal y envia el setup activo a tu chat.</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={handleSendCurrentSetupToTelegram}
+                                  className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-400/15"
+                                >
+                                  Send setup
+                                </button>
+                              </div>
+
+                              <div className="mt-5 grid gap-4">
+                                <div className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Telegram Alerts</p>
+                                    <button
+                                      type="button"
+                                      onClick={() => setTelegramEnabled((current) => !current)}
+                                      className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                                        telegramEnabled
+                                          ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
+                                          : 'border-white/10 bg-white/[0.04] text-slate-300'
+                                      }`}
+                                    >
+                                      {telegramEnabled ? 'Enabled' : 'Disabled'}
+                                    </button>
                                   </div>
-                                  <button
-                                    type="button"
-                                    onClick={handleSendCurrentSetupToTelegram}
-                                    className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-400/15"
-                                  >
-                                    Send setup
-                                  </button>
+                                  <p className="mt-3 text-sm text-slate-400">
+                                    {telegramConfigured
+                                      ? `Configurado en servidor · chat ${telegramChatPreview || '--'}`
+                                      : 'Aun no hay credenciales guardadas en servidor.'}
+                                  </p>
                                 </div>
-                                <div className="mt-4 grid gap-3">
-                                  <label className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
-                                    <div className="flex items-center justify-between gap-3">
-                                      <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Telegram Alerts</p>
-                                      <button
-                                        type="button"
-                                        onClick={() => setTelegramEnabled((current) => !current)}
-                                        className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                                          telegramEnabled
-                                            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
-                                            : 'border-white/10 bg-white/[0.04] text-slate-300'
-                                        }`}
-                                      >
-                                        {telegramEnabled ? 'Enabled' : 'Disabled'}
-                                      </button>
-                                    </div>
-                                    <p className="mt-2 text-sm text-slate-400">
-                                      {telegramConfigured
-                                        ? `Configurado en servidor · chat ${telegramChatPreview || '--'}`
-                                        : 'Aun no hay credenciales guardadas en servidor.'}
-                                    </p>
-                                  </label>
-                                  <label className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
-                                    <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Bot Token</p>
-                                    <input
-                                      type="password"
-                                      value={telegramBotToken}
-                                      onChange={(event) => setTelegramBotToken(event.target.value)}
-                                      placeholder="123456:ABC..."
-                                      className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
-                                    />
-                                  </label>
-                                  <label className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
-                                    <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Chat ID</p>
-                                    <input
-                                      type="text"
-                                      value={telegramChatId}
-                                      onChange={(event) => setTelegramChatId(event.target.value)}
-                                      placeholder="123456789"
-                                      className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
-                                    />
-                                  </label>
-                                  <button
-                                    type="button"
-                                    onClick={handleSaveTelegramSettings}
-                                    className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-400/15"
-                                  >
-                                    Save Telegram Securely
-                                  </button>
-                                  {telegramStatus ? (
-                                    <p className="text-sm text-slate-300">{telegramStatus}</p>
-                                  ) : (
-                                    <p className="text-sm text-slate-500">Las credenciales se guardan cifradas del lado servidor y no se exponen al cliente.</p>
-                                  )}
-                                </div>
+
+                                <label className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
+                                  <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Bot Token</p>
+                                  <input
+                                    type="password"
+                                    value={telegramBotToken}
+                                    onChange={(event) => setTelegramBotToken(event.target.value)}
+                                    placeholder="123456:ABC..."
+                                    className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
+                                  />
+                                </label>
+
+                                <label className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
+                                  <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Chat ID</p>
+                                  <input
+                                    type="text"
+                                    value={telegramChatId}
+                                    onChange={(event) => setTelegramChatId(event.target.value)}
+                                    placeholder="123456789"
+                                    className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
+                                  />
+                                </label>
+
+                                <button
+                                  type="button"
+                                  onClick={handleSaveTelegramSettings}
+                                  className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-400/15"
+                                >
+                                  Save Telegram Securely
+                                </button>
+
+                                {telegramStatus ? (
+                                  <p className="text-sm text-slate-300">{telegramStatus}</p>
+                                ) : (
+                                  <p className="text-sm text-slate-500">Las credenciales se guardan cifradas del lado servidor y no se exponen al cliente.</p>
+                                )}
                               </div>
                             </div>
                           </div>
-                        ) : null}
-                      </div>
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
 
