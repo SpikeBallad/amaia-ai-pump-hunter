@@ -47,7 +47,7 @@ export async function POST(request) {
 
   const responsePayload = await telegramResponse.json().catch(() => null);
 
-  if (!telegramResponse.ok) {
+  if (!telegramResponse.ok || responsePayload?.ok === false) {
     return NextResponse.json(
       {
         ok: false,
