@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import AmaiaCopilotPanel from '@/src/components/AmaiaCopilotPanel';
 import BrandMark from '@/src/components/BrandMark';
 import { useMarket } from '@/src/context/MarketContext';
+import { loadTelegramSettings, saveTelegramSettings, sendTelegramAlert } from '@/src/lib/alerts';
 
 const stateStyles = {
   HIGH: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
@@ -197,13 +198,14 @@ function buildSuggestedEntries(row, range) {
   const lastPrice = row.price;
   const rangePct = typeof row.rangePct === 'number' ? row.rangePct : typeof row.range_pct === 'number' ? row.range_pct : 0;
   const atrRatio = typeof row.atrRatio === 'number' ? row.atrRatio : typeof row.atr_ratio === 'number' ? row.atr_ratio : 0.01;
+  const priceFloor = Math.max(lastPrice * 0.05, 0.00000001);
 
   const depthMultiplier = range === '1D' ? 0.45 : range === '1W' ? 0.75 : 1.1;
   const basePullback = Math.max(atrRatio * 100 * depthMultiplier, Math.min(rangePct * 0.2, 6));
   const ladder = [
-    Math.max(0.1, lastPrice * (1 - (basePullback / 100))),
-    Math.max(0.1, lastPrice * (1 - ((basePullback * 1.75) / 100))),
-    Math.max(0.1, lastPrice * (1 - ((basePullback * 2.45) / 100))),
+    Math.max(priceFloor, lastPrice * (1 - (basePullback / 100))),
+    Math.max(priceFloor, lastPrice * (1 - ((basePullback * 1.75) / 100))),
+    Math.max(priceFloor, lastPrice * (1 - ((basePullback * 2.45) / 100))),
   ];
 
   return ladder.map((price, index) => ({
@@ -298,6 +300,10 @@ export default function DashboardPage() {
   const [alertScoreThreshold, setAlertScoreThreshold] = useState(7);
   const [accountCapital, setAccountCapital] = useState(1000);
   const [riskPercentPerTrade, setRiskPercentPerTrade] = useState(1);
+  const [telegramEnabled, setTelegramEnabled] = useState(false);
+  const [telegramBotToken, setTelegramBotToken] = useState('');
+  const [telegramChatId, setTelegramChatId] = useState('');
+  const [telegramStatus, setTelegramStatus] = useState('');
   const {
     backendStatus,
     moduleFilter,
@@ -338,6 +344,21 @@ export default function DashboardPage() {
     }, 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    const settings = loadTelegramSettings();
+    setTelegramEnabled(settings.enabled);
+    setTelegramBotToken(settings.botToken);
+    setTelegramChatId(settings.chatId);
+  }, []);
+
+  useEffect(() => {
+    saveTelegramSettings({
+      enabled: telegramEnabled,
+      botToken: telegramBotToken,
+      chatId: telegramChatId,
+    });
+  }, [telegramBotToken, telegramChatId, telegramEnabled]);
 
   useEffect(() => {
     if (selectedSymbol && !rows.some((row) => row.symbol === selectedSymbol)) {
@@ -457,6 +478,28 @@ export default function DashboardPage() {
           ? 'Spot Radar'
           : 'Cross Market';
   const coveragePctLabel = typeof coverage?.coverage_pct === 'number' ? `${coverage.coverage_pct.toFixed(1)}%` : '--';
+
+  async function handleSendCurrentSetupToTelegram() {
+    if (!strongestRow || !tradePlan) {
+      setTelegramStatus('No hay setup activo para enviar.');
+      return;
+    }
+
+    try {
+      setTelegramStatus('Enviando setup a Telegram...');
+      await sendTelegramAlert({
+        ...strongestRow,
+        marketType: strongestRow.marketType,
+        narrative: strongestRow.narrative,
+        narrativeLabel: strongestRow.narrativeLabel,
+        tradePlan,
+        positionSizing,
+      });
+      setTelegramStatus('Setup enviado correctamente.');
+    } catch {
+      setTelegramStatus('No se pudo enviar a Telegram. Revisa token y chat ID.');
+    }
+  }
 
   const formattedDate = useMemo(
     () =>
@@ -790,7 +833,7 @@ export default function DashboardPage() {
                           </span>
                         ) : null}
                       </div>
-                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                        <div className="mt-4 grid gap-3 md:grid-cols-3">
                           {suggestedEntries.map((entry) => (
                             <div key={entry.label} className="rounded-2xl border border-white/8 bg-white/[0.04] p-4">
                               <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{entry.label}</p>
@@ -800,7 +843,7 @@ export default function DashboardPage() {
                           ))}
                         </div>
                         {tradePlan ? (
-                          <div className="mt-4 grid gap-3 xl:grid-cols-[1.1fr_0.9fr]">
+                          <div className="mt-5 grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
                             <div className="rounded-[22px] border border-white/8 bg-white/[0.04] p-4">
                               <div className="flex flex-wrap items-center justify-between gap-3">
                                 <div>
@@ -819,16 +862,16 @@ export default function DashboardPage() {
                                   {tradePlan.decision}
                                 </span>
                               </div>
-                                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                                <div className="mt-4 grid gap-3 md:grid-cols-3">
                                   <div className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
                                     <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Avg Entry</p>
                                     <p className="mt-2 text-lg font-semibold text-white">{formatPrice(tradePlan.avgEntry)}</p>
                                   </div>
-                                <div className="rounded-2xl border border-rose-500/15 bg-rose-500/8 p-4">
-                                  <p className="text-xs uppercase tracking-[0.22em] text-rose-200/70">Stop Loss</p>
-                                  <p className="mt-2 text-lg font-semibold text-rose-100">{formatPrice(tradePlan.stopPrice)}</p>
-                                  <p className="mt-2 text-sm text-rose-200/70">Risk {tradePlan.maxRiskPct.toFixed(2)}%</p>
-                                </div>
+                                  <div className="rounded-2xl border border-rose-500/15 bg-rose-500/8 p-4">
+                                    <p className="text-xs uppercase tracking-[0.22em] text-rose-200/70">Stop Loss</p>
+                                    <p className="mt-2 text-lg font-semibold text-rose-100">{formatPrice(tradePlan.stopPrice)}</p>
+                                    <p className="mt-2 text-sm text-rose-200/70">Risk {tradePlan.maxRiskPct.toFixed(2)}%</p>
+                                  </div>
                                   <div className="rounded-2xl border border-cyan-500/15 bg-cyan-500/8 p-4">
                                     <p className="text-xs uppercase tracking-[0.22em] text-cyan-200/70">Position Risk</p>
                                     <p className="mt-2 text-lg font-semibold text-cyan-100">{tradePlan.allocationPct}% size</p>
@@ -861,7 +904,7 @@ export default function DashboardPage() {
                                   </label>
                                 </div>
                                 {positionSizing ? (
-                                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                                  <div className="mt-4 grid gap-3 md:grid-cols-3">
                                     <div className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
                                       <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Risk Budget</p>
                                       <p className="mt-2 text-lg font-semibold text-white">{formatPrice(positionSizing.riskBudgetUsd)}</p>
@@ -891,6 +934,64 @@ export default function DashboardPage() {
                                     <p className="mt-2 text-lg font-semibold text-white">{formatPrice(target.price)}</p>
                                   </div>
                                 ))}
+                              </div>
+                              <div className="mt-4 rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.06] p-4">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div>
+                                    <p className="text-[11px] uppercase tracking-[0.24em] text-emerald-200/70">Telegram Link</p>
+                                    <p className="mt-2 text-sm text-slate-300">Conecta tu bot personal y envia el setup activo a tu chat.</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={handleSendCurrentSetupToTelegram}
+                                    className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-400/15"
+                                  >
+                                    Send setup
+                                  </button>
+                                </div>
+                                <div className="mt-4 grid gap-3">
+                                  <label className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
+                                    <div className="flex items-center justify-between gap-3">
+                                      <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Telegram Alerts</p>
+                                      <button
+                                        type="button"
+                                        onClick={() => setTelegramEnabled((current) => !current)}
+                                        className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                                          telegramEnabled
+                                            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
+                                            : 'border-white/10 bg-white/[0.04] text-slate-300'
+                                        }`}
+                                      >
+                                        {telegramEnabled ? 'Enabled' : 'Disabled'}
+                                      </button>
+                                    </div>
+                                  </label>
+                                  <label className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
+                                    <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Bot Token</p>
+                                    <input
+                                      type="password"
+                                      value={telegramBotToken}
+                                      onChange={(event) => setTelegramBotToken(event.target.value)}
+                                      placeholder="123456:ABC..."
+                                      className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
+                                    />
+                                  </label>
+                                  <label className="rounded-2xl border border-white/8 bg-slate-950/55 p-4">
+                                    <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Chat ID</p>
+                                    <input
+                                      type="text"
+                                      value={telegramChatId}
+                                      onChange={(event) => setTelegramChatId(event.target.value)}
+                                      placeholder="123456789"
+                                      className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
+                                    />
+                                  </label>
+                                  {telegramStatus ? (
+                                    <p className="text-sm text-slate-300">{telegramStatus}</p>
+                                  ) : (
+                                    <p className="text-sm text-slate-500">Tus datos se guardan localmente en este navegador.</p>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>
