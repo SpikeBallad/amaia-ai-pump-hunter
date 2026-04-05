@@ -27,12 +27,15 @@ export default function BrandMark({ size = 'md', compact = false }) {
         <path d="M26 40 42 18l16 20m20 0 18-20 14 22" fill="none" stroke="url(#catStrokePro)" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M22 50c0-10 8-18 18-18h40c10 0 18 8 18 18v24c0 15-11 26-26 26H48c-15 0-26-11-26-26Z" fill="rgba(7,11,27,0.78)" stroke="url(#catStrokePro)" strokeWidth="4" />
         <path d="M36 48h48" stroke="rgba(103,232,249,0.18)" strokeWidth="2" strokeLinecap="round" />
+        <path d="M29 58h7m48 0h7" stroke="rgba(34,211,238,0.45)" strokeWidth="2.4" strokeLinecap="round" />
         <rect x="33" y="53" width="54" height="18" rx="9" fill="rgba(8,15,35,0.9)" stroke="url(#visorGlow)" strokeWidth="2.6" />
         <path d="M44 61h10m12 0h10" stroke="#e2fdf8" strokeWidth="3.6" strokeLinecap="round" />
+        <path d="M45 57h30" stroke="rgba(255,255,255,0.25)" strokeWidth="1.2" strokeLinecap="round" />
         <path d="M39 79h12l4 6h10l4-6h12" fill="none" stroke="url(#catStrokePro)" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M34 87h52" stroke="rgba(52,211,153,0.34)" strokeWidth="2" strokeLinecap="round" />
         <path d="M28 94h64" stroke="rgba(34,211,238,0.2)" strokeWidth="1.8" strokeLinecap="round" />
         <circle cx="60" cy="43" r="2.2" fill="#22d3ee" opacity="0.85" />
+        <path d="M50 92h20" stroke="rgba(251,191,36,0.45)" strokeWidth="1.6" strokeLinecap="round" />
       </svg>
       {!compact ? (
         <>

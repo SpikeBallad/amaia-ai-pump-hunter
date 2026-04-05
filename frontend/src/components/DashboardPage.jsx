@@ -291,6 +291,7 @@ export default function DashboardPage() {
   const [isPending, startTransition] = useTransition();
   const [locale, setLocale] = useState('en');
   const [theme, setTheme] = useState('dark');
+  const [tradeWorkspaceTab, setTradeWorkspaceTab] = useState('entries');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSymbol, setSelectedSymbol] = useState('');
   const [chartRange, setChartRange] = useState('1W');
@@ -566,19 +567,35 @@ export default function DashboardPage() {
             <div className="relative flex flex-col gap-8">
               <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
                 <div className="flex items-start gap-4">
-                  <BrandMark size="md" />
+                  <BrandMark size="lg" />
                   <div className="space-y-4">
-                    <span className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.32em] text-cyan-300">
-                      AMAIA AI PUMP HUNTER PRO
-                    </span>
-                    <div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="inline-flex rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.32em] text-cyan-300">
+                        AMAIA AI PUMP HUNTER PRO
+                      </span>
+                      <span className="inline-flex rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-200">
+                        Hunter Engine
+                      </span>
+                    </div>
+                    <div className="space-y-3">
+                      <p className="text-xs uppercase tracking-[0.42em] text-slate-500">Robotic Cat Intelligence Desk</p>
                       <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-                        Robotic hunter dashboard for cross-exchange pre-pump intelligence.
+                        Cross-exchange accumulation intelligence with a robotic hunter identity.
                       </h1>
-                      <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-400 sm:text-base">
+                      <p className="max-w-2xl text-sm leading-7 text-slate-400 sm:text-base">
                         Detecta acumulacion, trampas de liquidez y estructuras de explosion en spot y futures con una interfaz
-                        premium inspirada en terminales de trading de alta gama.
+                        premium, mas limpia y pensada como una mesa operativa real.
                       </p>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                        <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Brand Signal</p>
+                        <p className="mt-2 text-sm font-medium text-white">Hunter-grade market radar</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                        <p className="text-[10px] uppercase tracking-[0.28em] text-slate-500">Visual System</p>
+                        <p className="mt-2 text-sm font-medium text-white">Robot cat mark + premium desk UX</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -856,6 +873,28 @@ export default function DashboardPage() {
                         ) : null}
                       </div>
 
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        {[
+                          { value: 'entries', label: 'Entries' },
+                          { value: 'plan', label: 'Plan' },
+                          { value: 'telegram', label: 'Telegram' },
+                        ].map((tab) => (
+                          <button
+                            key={tab.value}
+                            type="button"
+                            onClick={() => setTradeWorkspaceTab(tab.value)}
+                            className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition ${
+                              tradeWorkspaceTab === tab.value
+                                ? 'border-cyan-400/30 bg-cyan-400/12 text-cyan-100'
+                                : 'border-white/10 bg-white/[0.03] text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            {tab.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {tradeWorkspaceTab === 'entries' ? (
                       <div className="mt-5 grid gap-4 lg:grid-cols-3">
                         {suggestedEntries.map((entry) => (
                           <div key={entry.label} className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5">
@@ -867,8 +906,9 @@ export default function DashboardPage() {
                           </div>
                         ))}
                       </div>
+                      ) : null}
 
-                      {tradePlan ? (
+                      {tradePlan && tradeWorkspaceTab === 'plan' ? (
                         <div className="mt-6 grid gap-5 2xl:grid-cols-[1.2fr_0.8fr]">
                           <div className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5">
                             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -967,81 +1007,86 @@ export default function DashboardPage() {
                                 ))}
                               </div>
                             </div>
+                          </div>
+                        </div>
+                      ) : null}
 
-                            <div className="rounded-[24px] border border-emerald-500/15 bg-emerald-500/[0.06] p-5">
-                              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                                <div className="max-w-xl">
-                                  <p className="text-[11px] uppercase tracking-[0.24em] text-emerald-200/70">Telegram Link</p>
-                                  <p className="mt-2 text-sm leading-7 text-slate-300">Conecta tu bot personal y envia el setup activo a tu chat.</p>
-                                </div>
+                      {tradePlan && tradeWorkspaceTab === 'telegram' ? (
+                        <div className="mt-6 rounded-[24px] border border-emerald-500/15 bg-emerald-500/[0.06] p-5">
+                          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="max-w-xl">
+                              <p className="text-[11px] uppercase tracking-[0.24em] text-emerald-200/70">Telegram Link</p>
+                              <p className="mt-2 text-sm leading-7 text-slate-300">Conecta tu bot personal y envia el setup activo con entries, stop y take profits.</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleSendCurrentSetupToTelegram}
+                              className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-400/15"
+                            >
+                              Send setup
+                            </button>
+                          </div>
+
+                          <div className="mt-5 grid gap-4 lg:grid-cols-[0.72fr_1fr]">
+                            <div className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Telegram Alerts</p>
                                 <button
                                   type="button"
-                                  onClick={handleSendCurrentSetupToTelegram}
-                                  className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-400/15"
+                                  onClick={() => setTelegramEnabled((current) => !current)}
+                                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                                    telegramEnabled
+                                      ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
+                                      : 'border-white/10 bg-white/[0.04] text-slate-300'
+                                  }`}
                                 >
-                                  Send setup
+                                  {telegramEnabled ? 'Enabled' : 'Disabled'}
                                 </button>
                               </div>
+                              <p className="mt-3 text-sm leading-7 text-slate-400">
+                                {telegramConfigured
+                                  ? `Configurado en servidor · chat ${telegramChatPreview || '--'}`
+                                  : 'Aun no hay credenciales guardadas en servidor.'}
+                              </p>
+                            </div>
 
-                              <div className="mt-5 grid gap-4">
-                                <div className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
-                                  <div className="flex items-center justify-between gap-3">
-                                    <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Telegram Alerts</p>
-                                    <button
-                                      type="button"
-                                      onClick={() => setTelegramEnabled((current) => !current)}
-                                      className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                                        telegramEnabled
-                                          ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
-                                          : 'border-white/10 bg-white/[0.04] text-slate-300'
-                                      }`}
-                                    >
-                                      {telegramEnabled ? 'Enabled' : 'Disabled'}
-                                    </button>
-                                  </div>
-                                  <p className="mt-3 text-sm text-slate-400">
-                                    {telegramConfigured
-                                      ? `Configurado en servidor · chat ${telegramChatPreview || '--'}`
-                                      : 'Aun no hay credenciales guardadas en servidor.'}
-                                  </p>
-                                </div>
+                            <div className="grid gap-4 md:grid-cols-2">
+                              <label className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5 md:col-span-2">
+                                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Bot Token</p>
+                                <input
+                                  type="password"
+                                  value={telegramBotToken}
+                                  onChange={(event) => setTelegramBotToken(event.target.value)}
+                                  placeholder="123456:ABC..."
+                                  className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
+                                />
+                              </label>
 
-                                <label className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
-                                  <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Bot Token</p>
-                                  <input
-                                    type="password"
-                                    value={telegramBotToken}
-                                    onChange={(event) => setTelegramBotToken(event.target.value)}
-                                    placeholder="123456:ABC..."
-                                    className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
-                                  />
-                                </label>
+                              <label className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
+                                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Chat ID</p>
+                                <input
+                                  type="text"
+                                  value={telegramChatId}
+                                  onChange={(event) => setTelegramChatId(event.target.value)}
+                                  placeholder="123456789"
+                                  className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
+                                />
+                              </label>
 
-                                <label className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
-                                  <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Chat ID</p>
-                                  <input
-                                    type="text"
-                                    value={telegramChatId}
-                                    onChange={(event) => setTelegramChatId(event.target.value)}
-                                    placeholder="123456789"
-                                    className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
-                                  />
-                                </label>
-
-                                <button
-                                  type="button"
-                                  onClick={handleSaveTelegramSettings}
-                                  className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-400/15"
-                                >
-                                  Save Telegram Securely
-                                </button>
-
-                                {telegramStatus ? (
-                                  <p className="text-sm text-slate-300">{telegramStatus}</p>
-                                ) : (
-                                  <p className="text-sm text-slate-500">Las credenciales se guardan cifradas del lado servidor y no se exponen al cliente.</p>
-                                )}
+                              <div className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
+                                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Delivery</p>
+                                <p className="mt-3 text-sm leading-7 text-slate-300">Las credenciales se guardan cifradas del lado servidor y no se exponen al cliente.</p>
                               </div>
+
+                              <button
+                                type="button"
+                                onClick={handleSaveTelegramSettings}
+                                className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-400/15 md:col-span-2"
+                              >
+                                Save Telegram Securely
+                              </button>
+
+                              {telegramStatus ? <p className="text-sm text-slate-300 md:col-span-2">{telegramStatus}</p> : null}
                             </div>
                           </div>
                         </div>
