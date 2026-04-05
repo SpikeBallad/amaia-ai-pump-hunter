@@ -133,8 +133,9 @@ function TradeDeskModal({ open, title, subtitle, onClose, children }) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(3,6,18,0.76)] px-4 py-8 backdrop-blur-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_24%),rgba(3,6,18,0.82)] px-4 py-8 backdrop-blur-xl">
       <div className="relative max-h-[88vh] w-full max-w-4xl overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(8,15,35,0.98),rgba(5,8,22,0.96))] shadow-[0_32px_120px_rgba(2,8,24,0.72)]">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.08),transparent_28%),radial-gradient(circle_at_85%_18%,rgba(16,185,129,0.08),transparent_24%)]" />
         <div className="flex items-start justify-between gap-4 border-b border-white/8 px-6 py-5">
           <div>
             <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Quantum Workspace</p>
@@ -526,6 +527,26 @@ export default function DashboardPage() {
       setTelegramStatus('Setup enviado correctamente.');
     } catch (error) {
       setTelegramStatus(error?.message ? `Telegram error: ${error.message}` : 'No se pudo enviar a Telegram. Revisa token y chat ID.');
+    }
+  }
+
+  async function handleSendTelegramTest() {
+    try {
+      setTelegramStatus('Enviando mensaje de prueba...');
+      await sendTelegramAlert({
+        symbol: strongestRow?.symbol ?? 'AMAIA_TEST',
+        estado: 'WATCHLIST',
+        marketType: strongestRow?.marketType ?? 'BINANCE_SPOT',
+        exchange: strongestRow?.exchange ?? 'binance',
+        score: strongestRow?.score ?? 8,
+        narrative: strongestRow?.narrative ?? 'System Test',
+        narrativeLabel: strongestRow?.narrativeLabel ?? 'System Test',
+        tradePlan,
+        positionSizing,
+      });
+      setTelegramStatus('Mensaje de prueba enviado correctamente.');
+    } catch (error) {
+      setTelegramStatus(error?.message ? `Telegram error: ${error.message}` : 'No se pudo enviar el mensaje de prueba.');
     }
   }
 
@@ -1580,6 +1601,13 @@ export default function DashboardPage() {
                 className="mt-5 w-full rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm font-medium text-emerald-100 transition hover:bg-emerald-400/15"
               >
                 Send setup
+              </button>
+              <button
+                type="button"
+                onClick={handleSendTelegramTest}
+                className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/[0.07]"
+              >
+                Send test message
               </button>
             </div>
 
