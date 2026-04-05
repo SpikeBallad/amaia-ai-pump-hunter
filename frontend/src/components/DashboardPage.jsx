@@ -129,6 +129,32 @@ function MetricCard({ label, value, detail, tone }) {
   );
 }
 
+function TradeDeskModal({ open, title, subtitle, onClose, children }) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(3,6,18,0.76)] px-4 py-8 backdrop-blur-xl">
+      <div className="relative max-h-[88vh] w-full max-w-4xl overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(8,15,35,0.98),rgba(5,8,22,0.96))] shadow-[0_32px_120px_rgba(2,8,24,0.72)]">
+        <div className="flex items-start justify-between gap-4 border-b border-white/8 px-6 py-5">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Quantum Workspace</p>
+            <h3 className="mt-2 text-2xl font-semibold text-white">{title}</h3>
+            {subtitle ? <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-400">{subtitle}</p> : null}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-slate-300 transition hover:text-white"
+          >
+            Close
+          </button>
+        </div>
+        <div className="max-h-[calc(88vh-100px)] overflow-y-auto px-6 py-6">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 function buildSparklinePath(candles) {
   if (!candles?.length) return '';
   const values = candles.map((candle) => candle.close);
@@ -291,7 +317,7 @@ export default function DashboardPage() {
   const [isPending, startTransition] = useTransition();
   const [locale, setLocale] = useState('en');
   const [theme, setTheme] = useState('dark');
-  const [tradeWorkspaceTab, setTradeWorkspaceTab] = useState('entries');
+  const [activeTradeModal, setActiveTradeModal] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSymbol, setSelectedSymbol] = useState('');
   const [chartRange, setChartRange] = useState('1W');
@@ -873,224 +899,35 @@ export default function DashboardPage() {
                         ) : null}
                       </div>
 
-                      <div className="mt-5 flex flex-wrap gap-2">
-                        {[
-                          { value: 'entries', label: 'Entries' },
-                          { value: 'plan', label: 'Plan' },
-                          { value: 'telegram', label: 'Telegram' },
-                        ].map((tab) => (
-                          <button
-                            key={tab.value}
-                            type="button"
-                            onClick={() => setTradeWorkspaceTab(tab.value)}
-                            className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition ${
-                              tradeWorkspaceTab === tab.value
-                                ? 'border-cyan-400/30 bg-cyan-400/12 text-cyan-100'
-                                : 'border-white/10 bg-white/[0.03] text-slate-400 hover:text-white'
-                            }`}
-                          >
-                            {tab.label}
-                          </button>
-                        ))}
-                      </div>
-
-                      {tradeWorkspaceTab === 'entries' ? (
                       <div className="mt-5 grid gap-4 lg:grid-cols-3">
-                        {suggestedEntries.map((entry) => (
-                          <div key={entry.label} className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5">
-                            <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{entry.label}</p>
-                            <p className="mt-3 text-2xl font-semibold text-white">{formatPrice(entry.price)}</p>
-                            <p className="mt-3 text-sm leading-6 text-slate-400">
-                              Limit order con {entry.offsetPct.toFixed(2)}% de descuento frente al spot actual.
-                            </p>
-                          </div>
-                        ))}
+                        <button
+                          type="button"
+                          onClick={() => setActiveTradeModal('entries')}
+                          className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5 text-left transition hover:border-cyan-400/20 hover:bg-white/[0.05]"
+                        >
+                          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Entries</p>
+                          <p className="mt-3 text-2xl font-semibold text-white">{suggestedEntries.length}</p>
+                          <p className="mt-3 text-sm leading-7 text-slate-400">Abre las entradas limit en un popup limpio y separado.</p>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTradeModal('plan')}
+                          className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5 text-left transition hover:border-cyan-400/20 hover:bg-white/[0.05]"
+                        >
+                          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Execution Plan</p>
+                          <p className="mt-3 text-2xl font-semibold text-white">{tradePlan?.decision ?? '--'}</p>
+                          <p className="mt-3 text-sm leading-7 text-slate-400">Visualiza entry, stop, risk, sizing y take profits sin compresion visual.</p>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTradeModal('telegram')}
+                          className="rounded-[24px] border border-emerald-500/12 bg-emerald-500/[0.05] p-5 text-left transition hover:border-emerald-400/20 hover:bg-emerald-500/[0.08]"
+                        >
+                          <p className="text-xs uppercase tracking-[0.24em] text-emerald-200/70">Telegram Link</p>
+                          <p className="mt-3 text-2xl font-semibold text-white">{telegramConfigured ? 'Ready' : 'Setup'}</p>
+                          <p className="mt-3 text-sm leading-7 text-slate-400">Configura tu bot y envia el setup activo desde una ventana dedicada.</p>
+                        </button>
                       </div>
-                      ) : null}
-
-                      {tradePlan && tradeWorkspaceTab === 'plan' ? (
-                        <div className="mt-6 grid gap-5 2xl:grid-cols-[1.2fr_0.8fr]">
-                          <div className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5">
-                            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                              <div className="max-w-2xl">
-                                <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Execution Plan</p>
-                                <p className="mt-2 text-sm leading-7 text-slate-300">{tradePlan.decisionReason}</p>
-                              </div>
-                              <span
-                                className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
-                                  tradePlan.decision === 'Entry'
-                                    ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
-                                    : tradePlan.decision === 'Monitor'
-                                      ? 'border-amber-500/20 bg-amber-500/10 text-amber-200'
-                                      : 'border-rose-500/20 bg-rose-500/10 text-rose-200'
-                                }`}
-                              >
-                                {tradePlan.decision}
-                              </span>
-                            </div>
-
-                            <div className="mt-5 grid gap-4 md:grid-cols-3">
-                              <div className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
-                                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Avg Entry</p>
-                                <p className="mt-3 text-2xl font-semibold text-white">{formatPrice(tradePlan.avgEntry)}</p>
-                              </div>
-                              <div className="rounded-[22px] border border-rose-500/15 bg-rose-500/8 p-5">
-                                <p className="text-xs uppercase tracking-[0.22em] text-rose-200/70">Stop Loss</p>
-                                <p className="mt-3 text-2xl font-semibold text-rose-100">{formatPrice(tradePlan.stopPrice)}</p>
-                                <p className="mt-3 text-sm text-rose-200/70">Risk {tradePlan.maxRiskPct.toFixed(2)}%</p>
-                              </div>
-                              <div className="rounded-[22px] border border-cyan-500/15 bg-cyan-500/8 p-5">
-                                <p className="text-xs uppercase tracking-[0.22em] text-cyan-200/70">Position Risk</p>
-                                <p className="mt-3 text-2xl font-semibold text-cyan-100">{tradePlan.allocationPct}% size</p>
-                                <p className="mt-3 text-sm text-cyan-200/70">RR max {tradePlan.riskRewardAtTp3}R</p>
-                              </div>
-                            </div>
-
-                            <div className="mt-5 grid gap-4 md:grid-cols-2">
-                              <label className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
-                                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Account Capital</p>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="100"
-                                  value={accountCapital}
-                                  onChange={(event) => setAccountCapital(event.target.value)}
-                                  className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
-                                />
-                              </label>
-                              <label className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
-                                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Risk Per Trade %</p>
-                                <input
-                                  type="number"
-                                  min="0.1"
-                                  max="10"
-                                  step="0.1"
-                                  value={riskPercentPerTrade}
-                                  onChange={(event) => setRiskPercentPerTrade(event.target.value)}
-                                  className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
-                                />
-                              </label>
-                            </div>
-
-                            {positionSizing ? (
-                              <div className="mt-5 grid gap-4 md:grid-cols-3">
-                                <div className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
-                                  <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Risk Budget</p>
-                                  <p className="mt-3 text-2xl font-semibold text-white">{formatPrice(positionSizing.riskBudgetUsd)}</p>
-                                </div>
-                                <div className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
-                                  <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Position Size</p>
-                                  <p className="mt-3 text-2xl font-semibold text-white">{formatPrice(positionSizing.positionSizeUsd)}</p>
-                                </div>
-                                <div className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
-                                  <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Quantity</p>
-                                  <p className="mt-3 text-2xl font-semibold text-white">{positionSizing.quantity.toFixed(4)}</p>
-                                </div>
-                              </div>
-                            ) : null}
-                          </div>
-
-                          <div className="grid gap-5">
-                            <div className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5">
-                              <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Take Profit Ladder</p>
-                              <div className="mt-5 grid gap-4">
-                                {tradePlan.takeProfits.map((target) => (
-                                  <div key={target.label} className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
-                                    <div className="flex items-center justify-between gap-3">
-                                      <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{target.label}</p>
-                                      <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-200">
-                                        {target.rewardMultiple.toFixed(1)}R
-                                      </span>
-                                    </div>
-                                    <p className="mt-3 text-2xl font-semibold text-white">{formatPrice(target.price)}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {tradePlan && tradeWorkspaceTab === 'telegram' ? (
-                        <div className="mt-6 rounded-[24px] border border-emerald-500/15 bg-emerald-500/[0.06] p-5">
-                          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="max-w-xl">
-                              <p className="text-[11px] uppercase tracking-[0.24em] text-emerald-200/70">Telegram Link</p>
-                              <p className="mt-2 text-sm leading-7 text-slate-300">Conecta tu bot personal y envia el setup activo con entries, stop y take profits.</p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={handleSendCurrentSetupToTelegram}
-                              className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-400/15"
-                            >
-                              Send setup
-                            </button>
-                          </div>
-
-                          <div className="mt-5 grid gap-4 lg:grid-cols-[0.72fr_1fr]">
-                            <div className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
-                              <div className="flex items-center justify-between gap-3">
-                                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Telegram Alerts</p>
-                                <button
-                                  type="button"
-                                  onClick={() => setTelegramEnabled((current) => !current)}
-                                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                                    telegramEnabled
-                                      ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
-                                      : 'border-white/10 bg-white/[0.04] text-slate-300'
-                                  }`}
-                                >
-                                  {telegramEnabled ? 'Enabled' : 'Disabled'}
-                                </button>
-                              </div>
-                              <p className="mt-3 text-sm leading-7 text-slate-400">
-                                {telegramConfigured
-                                  ? `Configurado en servidor · chat ${telegramChatPreview || '--'}`
-                                  : 'Aun no hay credenciales guardadas en servidor.'}
-                              </p>
-                            </div>
-
-                            <div className="grid gap-4 md:grid-cols-2">
-                              <label className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5 md:col-span-2">
-                                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Bot Token</p>
-                                <input
-                                  type="password"
-                                  value={telegramBotToken}
-                                  onChange={(event) => setTelegramBotToken(event.target.value)}
-                                  placeholder="123456:ABC..."
-                                  className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
-                                />
-                              </label>
-
-                              <label className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
-                                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Chat ID</p>
-                                <input
-                                  type="text"
-                                  value={telegramChatId}
-                                  onChange={(event) => setTelegramChatId(event.target.value)}
-                                  placeholder="123456789"
-                                  className="mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none"
-                                />
-                              </label>
-
-                              <div className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
-                                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Delivery</p>
-                                <p className="mt-3 text-sm leading-7 text-slate-300">Las credenciales se guardan cifradas del lado servidor y no se exponen al cliente.</p>
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={handleSaveTelegramSettings}
-                                className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-400/15 md:col-span-2"
-                              >
-                                Save Telegram Securely
-                              </button>
-
-                              {telegramStatus ? <p className="text-sm text-slate-300 md:col-span-2">{telegramStatus}</p> : null}
-                            </div>
-                          </div>
-                        </div>
-                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -1578,6 +1415,210 @@ export default function DashboardPage() {
         </section>
 
         <AmaiaCopilotPanel />
+
+        <TradeDeskModal
+          open={activeTradeModal === 'entries'}
+          title={`Entry Ladder · ${strongestRow?.symbol ?? '--'}`}
+          subtitle={`Tres entradas limit sugeridas para ${strongestRow?.symbol ?? 'el activo seleccionado'}, adaptadas al rango ${chartRange}.`}
+          onClose={() => setActiveTradeModal(null)}
+        >
+          <div className="grid gap-4 lg:grid-cols-3">
+            {suggestedEntries.map((entry) => (
+              <div key={entry.label} className="rounded-[26px] border border-white/8 bg-white/[0.04] p-6">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{entry.label}</p>
+                  <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-200">
+                    {entry.offsetPct.toFixed(2)}% below
+                  </span>
+                </div>
+                <p className="mt-4 text-3xl font-semibold text-white">{formatPrice(entry.price)}</p>
+                <p className="mt-4 text-sm leading-7 text-slate-400">Orden limit escalonada para construir posicion con mejor timing.</p>
+              </div>
+            ))}
+          </div>
+        </TradeDeskModal>
+
+        <TradeDeskModal
+          open={activeTradeModal === 'plan'}
+          title={`Execution Plan · ${strongestRow?.symbol ?? '--'}`}
+          subtitle={tradePlan?.decisionReason ?? 'Sin plan disponible todavia.'}
+          onClose={() => setActiveTradeModal(null)}
+        >
+          {tradePlan ? (
+            <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+              <div className="space-y-5">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span
+                    className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
+                      tradePlan.decision === 'Entry'
+                        ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
+                        : tradePlan.decision === 'Monitor'
+                          ? 'border-amber-500/20 bg-amber-500/10 text-amber-200'
+                          : 'border-rose-500/20 bg-rose-500/10 text-rose-200'
+                    }`}
+                  >
+                    {tradePlan.decision}
+                  </span>
+                  {macroBottomBuy ? (
+                    <span className="inline-flex rounded-full border border-fuchsia-500/20 bg-fuchsia-500/12 px-3 py-1 text-xs font-semibold text-fuchsia-200">
+                      MACRO BOTTOM BUY
+                    </span>
+                  ) : null}
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Avg Entry</p>
+                    <p className="mt-3 text-3xl font-semibold text-white">{formatPrice(tradePlan.avgEntry)}</p>
+                  </div>
+                  <div className="rounded-[24px] border border-rose-500/15 bg-rose-500/8 p-5">
+                    <p className="text-xs uppercase tracking-[0.22em] text-rose-200/70">Stop Loss</p>
+                    <p className="mt-3 text-3xl font-semibold text-rose-100">{formatPrice(tradePlan.stopPrice)}</p>
+                    <p className="mt-3 text-sm text-rose-200/70">Risk {tradePlan.maxRiskPct.toFixed(2)}%</p>
+                  </div>
+                  <div className="rounded-[24px] border border-cyan-500/15 bg-cyan-500/8 p-5">
+                    <p className="text-xs uppercase tracking-[0.22em] text-cyan-200/70">Position Risk</p>
+                    <p className="mt-3 text-3xl font-semibold text-cyan-100">{tradePlan.allocationPct}% size</p>
+                    <p className="mt-3 text-sm text-cyan-200/70">RR max {tradePlan.riskRewardAtTp3}R</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Account Capital</p>
+                    <input
+                      type="number"
+                      min="0"
+                      step="100"
+                      value={accountCapital}
+                      onChange={(event) => setAccountCapital(event.target.value)}
+                      className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none"
+                    />
+                  </label>
+                  <label className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Risk Per Trade %</p>
+                    <input
+                      type="number"
+                      min="0.1"
+                      max="10"
+                      step="0.1"
+                      value={riskPercentPerTrade}
+                      onChange={(event) => setRiskPercentPerTrade(event.target.value)}
+                      className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none"
+                    />
+                  </label>
+                </div>
+
+                {positionSizing ? (
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5">
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Risk Budget</p>
+                      <p className="mt-3 text-3xl font-semibold text-white">{formatPrice(positionSizing.riskBudgetUsd)}</p>
+                    </div>
+                    <div className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5">
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Position Size</p>
+                      <p className="mt-3 text-3xl font-semibold text-white">{formatPrice(positionSizing.positionSizeUsd)}</p>
+                    </div>
+                    <div className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5">
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Quantity</p>
+                      <p className="mt-3 text-3xl font-semibold text-white">{positionSizing.quantity.toFixed(4)}</p>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="rounded-[28px] border border-white/8 bg-white/[0.04] p-5">
+                <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Take Profit Ladder</p>
+                <div className="mt-5 grid gap-4">
+                  {tradePlan.takeProfits.map((target) => (
+                    <div key={target.label} className="rounded-[22px] border border-white/8 bg-slate-950/55 p-5">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs uppercase tracking-[0.22em] text-slate-500">{target.label}</p>
+                        <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-200">
+                          {target.rewardMultiple.toFixed(1)}R
+                        </span>
+                      </div>
+                      <p className="mt-3 text-3xl font-semibold text-white">{formatPrice(target.price)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </TradeDeskModal>
+
+        <TradeDeskModal
+          open={activeTradeModal === 'telegram'}
+          title="Telegram Link"
+          subtitle="Conecta tu bot personal y envia el setup activo desde una vista limpia y dedicada."
+          onClose={() => setActiveTradeModal(null)}
+        >
+          <div className="grid gap-5 xl:grid-cols-[0.72fr_1fr]">
+            <div className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Telegram Alerts</p>
+                <button
+                  type="button"
+                  onClick={() => setTelegramEnabled((current) => !current)}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                    telegramEnabled
+                      ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
+                      : 'border-white/10 bg-white/[0.04] text-slate-300'
+                  }`}
+                >
+                  {telegramEnabled ? 'Enabled' : 'Disabled'}
+                </button>
+              </div>
+              <p className="mt-4 text-sm leading-7 text-slate-400">
+                {telegramConfigured
+                  ? `Configurado en servidor · chat ${telegramChatPreview || '--'}`
+                  : 'Aun no hay credenciales guardadas en servidor.'}
+              </p>
+              <button
+                type="button"
+                onClick={handleSendCurrentSetupToTelegram}
+                className="mt-5 w-full rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm font-medium text-emerald-100 transition hover:bg-emerald-400/15"
+              >
+                Send setup
+              </button>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5 md:col-span-2">
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Bot Token</p>
+                <input
+                  type="password"
+                  value={telegramBotToken}
+                  onChange={(event) => setTelegramBotToken(event.target.value)}
+                  placeholder="123456:ABC..."
+                  className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none"
+                />
+              </label>
+              <label className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5">
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Chat ID</p>
+                <input
+                  type="text"
+                  value={telegramChatId}
+                  onChange={(event) => setTelegramChatId(event.target.value)}
+                  placeholder="123456789"
+                  className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none"
+                />
+              </label>
+              <div className="rounded-[24px] border border-white/8 bg-white/[0.04] p-5">
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Delivery</p>
+                <p className="mt-3 text-sm leading-7 text-slate-300">Las credenciales se guardan cifradas del lado servidor y no se exponen al cliente.</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveTelegramSettings}
+                className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-400/15 md:col-span-2"
+              >
+                Save Telegram Securely
+              </button>
+              {telegramStatus ? <p className="text-sm text-slate-300 md:col-span-2">{telegramStatus}</p> : null}
+            </div>
+          </div>
+        </TradeDeskModal>
 
         {activeAlert ? (
           <div className="fixed bottom-6 right-6 z-50 w-[min(92vw,420px)] rounded-[28px] border border-emerald-400/20 bg-slate-950/92 p-5 shadow-[0_24px_90px_rgba(16,185,129,0.18)] backdrop-blur">
