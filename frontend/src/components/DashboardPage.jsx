@@ -714,6 +714,18 @@ export default function DashboardPage() {
   return (
     <main className={`min-h-screen px-4 py-6 text-slate-100 sm:px-6 lg:px-8 ${theme === 'light' ? 'theme-light' : 'theme-dark'}`}>
       <div className="mx-auto flex max-w-[1520px] flex-col gap-6">
+        <div className="glass-panel flex flex-wrap items-center justify-between gap-3 rounded-[24px] px-5 py-3">
+          <div className="flex flex-wrap items-center gap-3 text-[11px] uppercase tracking-[0.24em] text-slate-500">
+            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-emerald-200">System Online</span>
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">Quant Desk</span>
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">Cross Exchange Radar</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 text-[11px] uppercase tracking-[0.24em] text-slate-500">
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1">Session {detectSession(sessionNow)}</span>
+            <span className="rounded-full border border-cyan-500/15 bg-cyan-500/8 px-3 py-1 text-cyan-200">{socketLabel}</span>
+          </div>
+        </div>
+
         <section className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
           <div className="glass-panel relative overflow-hidden rounded-[36px] p-6 sm:p-8">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.14),transparent_30%),radial-gradient(circle_at_80%_18%,rgba(52,211,153,0.12),transparent_24%)]" />
