@@ -114,6 +114,17 @@ export default function LandingPage() {
                       explosión: compresión real, trampas de liquidez, drawdowns profundos y setups todavía sin atención
                       masiva.
                     </p>
+                    <div className="mt-6 flex flex-wrap gap-3">
+                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-200">
+                        Not for hype chasing
+                      </span>
+                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-200">
+                        Built for pre-breakout structure
+                      </span>
+                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-200">
+                        Scanner + execution + AI guidance
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -153,6 +164,9 @@ export default function LandingPage() {
                   <PaymentButton href={stripeUrl} label="Pagar con Stripe" />
                   <PaymentButton href={paypalUrl} label="Pagar con PayPal" tone="secondary" />
                 </div>
+                <p className="mt-4 text-xs leading-6 text-slate-500">
+                  Recomendado: configura Stripe o PayPal para redirigir después del pago a <span className="text-slate-300">/thank-you</span>.
+                </p>
               </div>
               <div className="mt-5 rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
                 <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Ideal For</p>
@@ -225,6 +239,24 @@ export default function LandingPage() {
                 <p className="text-[11px] uppercase tracking-[0.26em] text-slate-500">Conversion</p>
                 <p className="mt-3 text-lg font-semibold text-white">CTA simple</p>
                 <p className="mt-3 text-sm leading-7 text-slate-400">Landing clara, pricing directo, Stripe/PayPal y acceso inmediato a login privado.</p>
+              </div>
+            </div>
+            <div className="mt-6 grid gap-4 md:grid-cols-4">
+              <div className="rounded-[24px] border border-cyan-500/15 bg-cyan-500/[0.05] p-5">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Traffic</p>
+                <p className="mt-2 text-sm font-medium text-white">Short-form clips + screenshots + “before the crowd” messaging</p>
+              </div>
+              <div className="rounded-[24px] border border-cyan-500/15 bg-cyan-500/[0.05] p-5">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Lead Angle</p>
+                <p className="mt-2 text-sm font-medium text-white">Ignored assets, low attention, pre-explosion setups</p>
+              </div>
+              <div className="rounded-[24px] border border-cyan-500/15 bg-cyan-500/[0.05] p-5">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Offer</p>
+                <p className="mt-2 text-sm font-medium text-white">Scanner + execution desk + AI copilot + alerts</p>
+              </div>
+              <div className="rounded-[24px] border border-cyan-500/15 bg-cyan-500/[0.05] p-5">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Post Purchase</p>
+                <p className="mt-2 text-sm font-medium text-white">Thank-you page → onboarding → login → terminal</p>
               </div>
             </div>
           </div>
