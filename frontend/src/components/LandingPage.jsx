@@ -81,6 +81,25 @@ function VideoFeature({ eyebrow, title, description, videoUrl, posterTone = 'cya
   );
 }
 
+function FaqItem({ question, answer }) {
+  return (
+    <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
+      <p className="text-sm font-semibold text-white">{question}</p>
+      <p className="mt-3 text-sm leading-7 text-slate-400">{answer}</p>
+    </div>
+  );
+}
+
+function ObjectionCard({ title, concern, response }) {
+  return (
+    <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
+      <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">{title}</p>
+      <p className="mt-3 text-base font-semibold text-amber-100">{concern}</p>
+      <p className="mt-3 text-sm leading-7 text-slate-400">{response}</p>
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const stripeUrl = process.env.NEXT_PUBLIC_STRIPE_PAYMENT_URL ?? '/login';
   const paypalUrl = process.env.NEXT_PUBLIC_PAYPAL_PAYMENT_URL ?? '/login';
@@ -321,6 +340,66 @@ export default function LandingPage() {
             <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
               <p className="text-[11px] uppercase tracking-[0.26em] text-slate-500">4. Automatiza</p>
               <p className="mt-3 text-sm leading-7 text-slate-300">Conecta Telegram para recibir setups y guardar un flujo de operación profesional.</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
+          <div className="glass-panel rounded-[34px] p-6">
+            <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Objection Handling</p>
+            <h2 className="mt-3 text-3xl font-semibold text-white">Objeciones comunes antes de comprar</h2>
+            <div className="mt-6 grid gap-4">
+              <ObjectionCard
+                title="Objeción 1"
+                concern="“Ya hay muchos scanners y bots.”"
+                response="Amaia no compite como un screener genérico. Combina descubrimiento temprano, contexto estructural, execution plan, sizing, alertas y guía AI en una sola mesa operativa."
+              />
+              <ObjectionCard
+                title="Objeción 2"
+                concern="“No quiero entrar tarde en monedas hype.”"
+                response="Ese es exactamente el punto del sistema: excluir activos ya estirados y priorizar compresión, drawdown y atención baja antes de la ruptura."
+              />
+              <ObjectionCard
+                title="Objeción 3"
+                concern="“¿Y si no sé usar una plataforma compleja?”"
+                response="La experiencia ya incluye onboarding, video guiado, Amaia AI copilot, plan operativo, alertas y una ruta clara para pasar de ver setups a ejecutar con estructura."
+              />
+              <ObjectionCard
+                title="Objeción 4"
+                concern="“€79 al mes, ¿vale la pena?”"
+                response="Si una sola mala entrada evitada o una sola ejecución disciplinada mejora tu operativa, el coste deja de ser gasto y pasa a ser infraestructura operativa."
+              />
+            </div>
+          </div>
+
+          <div className="glass-panel rounded-[34px] p-6">
+            <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">FAQ</p>
+            <h2 className="mt-3 text-3xl font-semibold text-white">Preguntas frecuentes que ayudan a convertir</h2>
+            <div className="mt-6 grid gap-4">
+              <FaqItem
+                question="¿Esto da señales de compra automáticas?"
+                answer="Da setups estructurados, alertas, chart, entries, stop, take profits y sizing. La decisión final sigue siendo del operador, pero con muchísimo más contexto."
+              />
+              <FaqItem
+                question="¿Sirve para Spot y Futures?"
+                answer="Sí. La propuesta central es precisamente cruzar Spot y Futures entre Binance y MEXC para encontrar oportunidades antes del consenso del mercado."
+              />
+              <FaqItem
+                question="¿Necesito experiencia avanzada para usarlo?"
+                answer="No para empezar. Sí ayuda tener disciplina. La plataforma está diseñada para acompañar al usuario con filtros claros, visuales, onboarding y Amaia AI copilot."
+              />
+              <FaqItem
+                question="¿Cómo recibo oportunidades?"
+                answer="Dentro del terminal puedes usar el Alert Center, reglas filtradas por market, exchange y score, y conectar Telegram para recibir mensajes operativos."
+              />
+              <FaqItem
+                question="¿Qué pasa después de pagar?"
+                answer="La ruta recomendada es simple: thank-you page, onboarding, login, terminal. Así reduces fricción y empiezas a usar el sistema con una metodología correcta."
+              />
+              <FaqItem
+                question="¿Qué hace diferente a Amaia frente a mirar TradingView manualmente?"
+                answer="TradingView te ayuda a analizar. Amaia te ayuda a descubrir qué merece ser analizado primero, con prioridad operativa, estructura y flujo multi-exchange."
+              />
             </div>
           </div>
         </section>
