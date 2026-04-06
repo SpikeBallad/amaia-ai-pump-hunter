@@ -94,6 +94,12 @@ export default function LandingPage() {
                   <li>Usuarios que prefieren setups estructurados y no monedas en tendencia tardía.</li>
                   <li>Operadores que valoran scanner, guía y ejecución en una sola interfaz.</li>
                 </ul>
+                <a
+                  href="/onboarding"
+                  className="mt-5 inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]"
+                >
+                  Ver onboarding del cliente
+                </a>
               </div>
             </div>
           </div>
