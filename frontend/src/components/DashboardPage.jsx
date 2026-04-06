@@ -1027,6 +1027,14 @@ export default function DashboardPage() {
                   >
                     {isPending ? 'Closing...' : 'Log out'}
                   </button>
+                  <a
+                    href="/cat-bot"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/10 px-4 py-3 text-sm font-semibold text-fuchsia-100 transition hover:bg-fuchsia-500/15"
+                  >
+                    Open Cat Bot
+                  </a>
                 </div>
               </div>
 
@@ -1081,9 +1089,12 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+              <div className="grid gap-4 xl:grid-cols-[1.15fr_0.8fr_0.8fr]">
                 <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
                   <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">{t.search}</p>
+                  <p className="mt-2 text-sm leading-7 text-slate-400">
+                    Escribe un símbolo y cárgalo en el chart aunque no aparezca en la tabla actual.
+                  </p>
                   <div className="mt-3 flex flex-col gap-3 sm:flex-row">
                     <div className="flex-1 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3">
                       <input
@@ -1150,6 +1161,24 @@ export default function DashboardPage() {
                       <p className="text-xs text-slate-500">Session</p>
                       <p className="mt-1 text-sm text-cyan-300">{detectSession(sessionNow)}</p>
                     </div>
+                  </div>
+                </div>
+                <div className="rounded-[28px] border border-cyan-500/15 bg-cyan-500/[0.05] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.28em] text-cyan-200/70">Quick Flow</p>
+                  <div className="mt-3 space-y-3 text-sm leading-7 text-slate-200">
+                    <p>1. Empieza en <span className="text-white">All Setups</span> para ver el radar completo.</p>
+                    <p>2. Usa la lupa para cargar un activo concreto en el chart.</p>
+                    <p>3. Si quieres validar edge, abre <span className="text-white">Cat Bot</span> en ventana aparte y compara win rate Spot vs Futures.</p>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <a
+                      href="/cat-bot"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/10 px-4 py-3 text-sm font-semibold text-fuchsia-100 transition hover:bg-fuchsia-500/15"
+                    >
+                      Open Cat Bot Window
+                    </a>
                   </div>
                 </div>
               </div>
