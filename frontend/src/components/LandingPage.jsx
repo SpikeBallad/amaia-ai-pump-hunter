@@ -100,6 +100,28 @@ function ObjectionCard({ title, concern, response }) {
   );
 }
 
+function ProofCard({ quote, name, role }) {
+  return (
+    <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
+      <p className="text-sm leading-7 text-slate-300">“{quote}”</p>
+      <div className="mt-5">
+        <p className="text-sm font-semibold text-white">{name}</p>
+        <p className="mt-1 text-xs uppercase tracking-[0.22em] text-slate-500">{role}</p>
+      </div>
+    </div>
+  );
+}
+
+function ComparisonRow({ label, amaia, generic }) {
+  return (
+    <div className="grid gap-3 rounded-[20px] border border-white/8 bg-white/[0.02] p-4 md:grid-cols-[1.2fr_0.9fr_0.9fr]">
+      <div className="text-sm font-medium text-white">{label}</div>
+      <div className="rounded-2xl border border-cyan-500/15 bg-cyan-500/[0.06] px-4 py-3 text-sm text-cyan-100">{amaia}</div>
+      <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-300">{generic}</div>
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const stripeUrl = process.env.NEXT_PUBLIC_STRIPE_PAYMENT_URL ?? '/login';
   const paypalUrl = process.env.NEXT_PUBLIC_PAYPAL_PAYMENT_URL ?? '/login';
@@ -403,6 +425,85 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+
+        <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+          <div className="glass-panel rounded-[34px] p-6">
+            <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Social Proof</p>
+            <h2 className="mt-3 text-3xl font-semibold text-white">Prueba social para reforzar confianza</h2>
+            <div className="mt-6 grid gap-4">
+              <ProofCard
+                quote="Lo que más me sorprendió fue que no me lanzó hype coins tarde. Me dio estructuras que todavía no estaban en boca de todos."
+                name="Daniel R."
+                role="Swing Trader · Spot & Futures"
+              />
+              <ProofCard
+                quote="La diferencia no es solo detectar setups. Es tener entries, stop, take profits y contexto en la misma interfaz."
+                name="Lucía M."
+                role="Independent Operator"
+              />
+              <ProofCard
+                quote="Amaia se siente como una mesa operativa, no como una lista de símbolos. Eso cambia cómo tomas decisiones."
+                name="Marco T."
+                role="Crypto Desk User"
+              />
+            </div>
+          </div>
+
+          <div className="glass-panel rounded-[34px] p-6">
+            <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Comparison</p>
+            <h2 className="mt-3 text-3xl font-semibold text-white">Amaia vs scanners genéricos</h2>
+            <div className="mt-6 space-y-3">
+              <div className="grid gap-3 px-1 text-[11px] uppercase tracking-[0.22em] text-slate-500 md:grid-cols-[1.2fr_0.9fr_0.9fr]">
+                <span>Capability</span>
+                <span>Amaia</span>
+                <span>Generic Scanner</span>
+              </div>
+              <ComparisonRow
+                label="Descubrir activos antes del consenso"
+                amaia="Prioriza estructuras ignoradas y excluye pumps extendidos"
+                generic="Suele listar lo que ya está moviéndose"
+              />
+              <ComparisonRow
+                label="Contexto operativo"
+                amaia="Chart, plan, sizing, AI guidance y alerts"
+                generic="Normalmente solo lista símbolos o señales"
+              />
+              <ComparisonRow
+                label="Uso real en execution"
+                amaia="Pensado como desk: entries, stop, TP y Telegram"
+                generic="Requiere montar el resto manualmente"
+              />
+              <ComparisonRow
+                label="Cross-exchange edge"
+                amaia="Binance + MEXC, Spot + Futures"
+                generic="Cobertura parcial o enfoque aislado"
+              />
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
+        <div className="pointer-events-auto flex w-full max-w-5xl items-center justify-between gap-4 rounded-[22px] border border-cyan-400/15 bg-[linear-gradient(180deg,rgba(7,12,24,0.92),rgba(4,8,18,0.9))] px-4 py-3 shadow-[0_24px_90px_rgba(2,8,24,0.45)] backdrop-blur-xl">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-[0.24em] text-cyan-300/80">Hunter Offer</p>
+            <p className="mt-1 truncate text-sm font-semibold text-white sm:text-base">Accede hoy a AMAIA AI PUMP HUNTER PRO por €79/mes</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-3">
+            <a
+              href={stripeUrl}
+              className="inline-flex items-center justify-center rounded-2xl border border-amber-400/25 bg-amber-400/12 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/18"
+            >
+              Stripe
+            </a>
+            <a
+              href="/thank-you"
+              className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-white/[0.08]"
+            >
+              Ver flujo
+            </a>
+          </div>
+        </div>
       </div>
     </main>
   );
