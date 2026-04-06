@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 import AmaiaCopilotPanel from '@/src/components/AmaiaCopilotPanel';
@@ -424,6 +424,7 @@ export default function DashboardPage() {
   const [telegramChatPreview, setTelegramChatPreview] = useState('');
   const [savedSetups, setSavedSetups] = useState([]);
   const [savedAlertRules, setSavedAlertRules] = useState([]);
+  const autoTriggeredRulesRef = useRef(new Set());
   const {
     backendStatus,
     moduleFilter,
@@ -710,6 +711,8 @@ export default function DashboardPage() {
       market: alertMarketFilter,
       exchange: alertExchangeFilter,
       score: alertScoreThreshold,
+      enabled: true,
+      priority: alertScoreThreshold >= 9 ? 'high' : alertScoreThreshold >= 7 ? 'medium' : 'normal',
     };
     const nextRules = [nextRule, ...savedAlertRules].slice(0, 8);
     setSavedAlertRules(nextRules);
@@ -722,6 +725,18 @@ export default function DashboardPage() {
 
   function handleRemoveAlertRule(ruleId) {
     const nextRules = savedAlertRules.filter((rule) => rule.id !== ruleId);
+    setSavedAlertRules(nextRules);
+    try {
+      window.localStorage.setItem('amaia-alert-rules', JSON.stringify(nextRules));
+    } catch {
+      // Ignore local storage limits.
+    }
+  }
+
+  function handleToggleAlertRule(ruleId) {
+    const nextRules = savedAlertRules.map((rule) =>
+      rule.id === ruleId ? { ...rule, enabled: !rule.enabled } : rule
+    );
     setSavedAlertRules(nextRules);
     try {
       window.localStorage.setItem('amaia-alert-rules', JSON.stringify(nextRules));
@@ -776,6 +791,40 @@ export default function DashboardPage() {
       }).format(sessionNow),
     [locale, sessionNow]
   );
+
+  useEffect(() => {
+    if (!activeAlert || !telegramEnabled || !telegramConfigured) return;
+
+    const matchingRules = savedAlertRules.filter((rule) => {
+      if (!rule.enabled) return false;
+      const marketMatch = rule.market === 'all' || activeAlert.marketBucket === rule.market;
+      const exchangeMatch = rule.exchange === 'all' || activeAlert.exchange === rule.exchange;
+      const scoreMatch = activeAlert.score >= rule.score;
+      return marketMatch && exchangeMatch && scoreMatch;
+    });
+
+    if (!matchingRules.length) return;
+
+    const highestPriorityRule = [...matchingRules].sort((left, right) => {
+      const rank = { high: 3, medium: 2, normal: 1 };
+      return (rank[right.priority] ?? 1) - (rank[left.priority] ?? 1);
+    })[0];
+
+    const dedupeKey = `${highestPriorityRule.id}:${activeAlert.id}`;
+    if (autoTriggeredRulesRef.current.has(dedupeKey)) return;
+    autoTriggeredRulesRef.current.add(dedupeKey);
+
+    sendTelegramAlert({
+      ...activeAlert,
+      symbol: `${activeAlert.symbol} [${highestPriorityRule.priority?.toUpperCase?.() ?? 'RULE'}]`,
+    })
+      .then(() => {
+        setTelegramStatus(`Regla ${highestPriorityRule.priority} enviada a Telegram.`);
+      })
+      .catch((error) => {
+        setTelegramStatus(error?.message ? `Telegram error: ${error.message}` : 'No se pudo enviar la regla automatica.');
+      });
+  }, [activeAlert, savedAlertRules, telegramConfigured, telegramEnabled]);
 
   function handleLogout() {
     startTransition(async () => {
@@ -1526,16 +1575,42 @@ export default function DashboardPage() {
               <div className="mt-4 space-y-3">
                 {savedAlertRules.map((rule) => (
                   <div key={rule.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
-                    <span>
-                      {rule.market}/{rule.exchange}/score {rule.score}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveAlertRule(rule.id)}
-                      className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-300 transition hover:text-white"
-                    >
-                      Remove
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span>
+                        {rule.market}/{rule.exchange}/score {rule.score}
+                      </span>
+                      <span
+                        className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                          rule.priority === 'high'
+                            ? 'border-rose-500/20 bg-rose-500/10 text-rose-200'
+                            : rule.priority === 'medium'
+                              ? 'border-amber-500/20 bg-amber-500/10 text-amber-200'
+                              : 'border-cyan-500/20 bg-cyan-500/10 text-cyan-200'
+                        }`}
+                      >
+                        {rule.priority}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleAlertRule(rule.id)}
+                        className={`rounded-full border px-3 py-1 text-xs transition ${
+                          rule.enabled
+                            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
+                            : 'border-white/10 bg-white/[0.04] text-slate-300'
+                        }`}
+                      >
+                        {rule.enabled ? 'On' : 'Off'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveAlertRule(rule.id)}
+                        className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-300 transition hover:text-white"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
                 ))}
                 {savedAlertRules.length === 0 ? (
