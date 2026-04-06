@@ -122,6 +122,9 @@ function AccountSummaryCard({ eyebrow, title, bucket, account, stats }) {
 export default function CatBotPage() {
   const { rows, alertLog, summary, lastUpdated } = useMarket();
   const [engineState, setEngineState] = useState(createInitialEngineState);
+  const [minScoreFilter, setMinScoreFilter] = useState(7);
+  const [exchangeFilter, setExchangeFilter] = useState('all');
+  const [marketFilter, setMarketFilter] = useState('all');
   const hydratedRef = useRef(false);
 
   useEffect(() => {
@@ -154,7 +157,9 @@ export default function CatBotPage() {
     if (!hydratedRef.current || !alertLog.length) return;
 
     const latestAlert = alertLog[0];
-    if (!latestAlert || latestAlert.score < 7) return;
+    if (!latestAlert || latestAlert.score < minScoreFilter) return;
+    if (exchangeFilter !== 'all' && latestAlert.exchange !== exchangeFilter) return;
+    if (marketFilter !== 'all' && latestAlert.marketBucket !== marketFilter) return;
     if (engineState.processedAlertIds.includes(latestAlert.id)) return;
 
     const matchingRow = rows.find(
@@ -215,7 +220,7 @@ export default function CatBotPage() {
         },
       };
     });
-  }, [alertLog, engineState.processedAlertIds, rows]);
+  }, [alertLog, engineState.processedAlertIds, exchangeFilter, marketFilter, minScoreFilter, rows]);
 
   useEffect(() => {
     if (!hydratedRef.current || !rows.length) return;
@@ -318,6 +323,28 @@ export default function CatBotPage() {
     setEngineState(createInitialEngineState());
   }
 
+  function exportHistory() {
+    const exportPayload = {
+      generatedAt: new Date().toISOString(),
+      filters: {
+        minScoreFilter,
+        exchangeFilter,
+        marketFilter,
+      },
+      comparisonInsight,
+      spot: engineState.spot.history,
+      futures: engineState.futures.history,
+    };
+
+    const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'amaia-cat-bot-history.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   function toggleAutoTrade(accountKey) {
     setEngineState((current) => ({
       ...current,
@@ -381,6 +408,42 @@ export default function CatBotPage() {
               <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Control Room</p>
               <h2 className="mt-3 text-3xl font-semibold text-white">Demo execution settings</h2>
               <div className="mt-6 grid gap-4">
+                <label className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left text-sm text-slate-200">
+                  <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Min Score</span>
+                  <input
+                    type="number"
+                    min="7"
+                    max="10"
+                    step="1"
+                    value={minScoreFilter}
+                    onChange={(event) => setMinScoreFilter(Number(event.target.value))}
+                    className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none"
+                  />
+                </label>
+                <label className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left text-sm text-slate-200">
+                  <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Exchange Filter</span>
+                  <select
+                    value={exchangeFilter}
+                    onChange={(event) => setExchangeFilter(event.target.value)}
+                    className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none"
+                  >
+                    <option value="all">All Venues</option>
+                    <option value="binance">Binance</option>
+                    <option value="mexc">MEXC</option>
+                  </select>
+                </label>
+                <label className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left text-sm text-slate-200">
+                  <span className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Market Filter</span>
+                  <select
+                    value={marketFilter}
+                    onChange={(event) => setMarketFilter(event.target.value)}
+                    className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none"
+                  >
+                    <option value="all">All Markets</option>
+                    <option value="spot">Spot</option>
+                    <option value="futures">Futures</option>
+                  </select>
+                </label>
                 <button
                   type="button"
                   onClick={() => toggleAutoTrade('spot')}
@@ -401,6 +464,13 @@ export default function CatBotPage() {
                   className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/15"
                 >
                   Reset demo accounts
+                </button>
+                <button
+                  type="button"
+                  onClick={exportHistory}
+                  className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-slate-100 transition hover:bg-white/[0.08]"
+                >
+                  Export bot history
                 </button>
               </div>
               <div className="mt-6 rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-sm leading-7 text-slate-300">
