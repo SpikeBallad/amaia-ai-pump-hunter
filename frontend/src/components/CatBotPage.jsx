@@ -62,14 +62,24 @@ function buildTradeTemplate(row) {
   const stopFromRange = row.price * (1 - stopBufferPct / 100);
   const structuralStop = accumulationLow * (1 - Math.max(atrRatio * 0.8, 0.008));
   const stopPrice = Math.min(stopFromRange, structuralStop);
-  const riskPerUnit = Math.max(row.price - stopPrice, row.price * 0.005);
-  const targetPrice = row.price + riskPerUnit * 2.6;
+  const dcaStep1Pct = Math.min(Math.max(rangePct * 0.12, 1.2), 3.8);
+  const dcaStep2Pct = Math.min(Math.max(rangePct * 0.24, 2.4), 7.2);
+  const entries = [
+    { label: 'E1', price: row.price, allocation: 0.5 },
+    { label: 'E2', price: row.price * (1 - dcaStep1Pct / 100), allocation: 0.3 },
+    { label: 'E3', price: row.price * (1 - dcaStep2Pct / 100), allocation: 0.2 },
+  ];
+  const averageEntry = entries.reduce((sum, entry) => sum + entry.price * entry.allocation, 0);
+  const riskPerUnit = Math.max(averageEntry - stopPrice, averageEntry * 0.005);
+  const targetPrice = averageEntry + riskPerUnit * 2.6;
 
   return {
-    entryPrice: row.price,
+    entryPrice: averageEntry,
     stopPrice,
     targetPrice,
-    riskPct: ((row.price - stopPrice) / row.price) * 100,
+    riskPct: ((averageEntry - stopPrice) / averageEntry) * 100,
+    entries,
+    strategyLabel: '3-step DCA + structural stop + 2.6R target',
   };
 }
 
@@ -114,6 +124,72 @@ function AccountSummaryCard({ eyebrow, title, bucket, account, stats }) {
           <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">PnL</p>
           <p className={`mt-2 text-xl font-semibold ${stats.totalPnl >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{formatPrice(stats.totalPnl)}</p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function PositionStrategyCard({ position, livePrice, livePnl }) {
+  const filledEntries = position.dcaEntries?.filter((entry) => entry.filled) ?? [];
+  const pendingEntries = position.dcaEntries?.filter((entry) => !entry.filled) ?? [];
+
+  return (
+    <div className="mt-4 grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+      <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-4">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Strategy</p>
+        <p className="mt-2 text-sm font-medium text-white">{position.strategyLabel}</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Avg Entry</p>
+            <p className="mt-2 text-white">{formatPrice(position.entryPrice)}</p>
+          </div>
+          <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Stop Loss</p>
+            <p className="mt-2 text-white">{formatPrice(position.stopPrice)}</p>
+          </div>
+          <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Target</p>
+            <p className="mt-2 text-white">{formatPrice(position.targetPrice)}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">DCA Ladder</p>
+          <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-200">
+            {filledEntries.length}/{position.dcaEntries?.length ?? 0} filled
+          </span>
+        </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          {(position.dcaEntries ?? []).map((entry) => (
+            <div key={entry.label} className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">{entry.label}</p>
+                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${entry.filled ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200' : 'border-white/10 bg-white/[0.04] text-slate-300'}`}>
+                  {entry.filled ? 'Filled' : 'Pending'}
+                </span>
+              </div>
+              <p className="mt-2 text-white">{formatPrice(entry.price)}</p>
+              <p className="mt-1 text-xs text-slate-500">{Math.round(entry.allocation * 100)}% size</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Live Price</p>
+            <p className="mt-2 text-white">{formatPrice(livePrice)}</p>
+          </div>
+          <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Live PnL</p>
+            <p className={`mt-2 font-semibold ${typeof livePnl === 'number' && livePnl >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{formatPrice(livePnl)}</p>
+          </div>
+        </div>
+        {pendingEntries.length === 0 ? (
+          <p className="mt-3 text-xs text-emerald-300">Todas las entradas DCA ya fueron ejecutadas.</p>
+        ) : (
+          <p className="mt-3 text-xs text-slate-400">Las patas pendientes se activan cuando el precio toca esos niveles reales del mercado.</p>
+        )}
       </div>
     </div>
   );
@@ -192,7 +268,9 @@ export default function CatBotPage() {
       if (marginUsd <= 0) return next;
 
       const notionalUsd = accountKey === 'futures' ? marginUsd * account.leverage : marginUsd;
-      const quantity = notionalUsd / matchingRow.price;
+      const initialEntry = template.entries[0];
+      const initialNotionalUsd = notionalUsd * initialEntry.allocation;
+      const quantity = initialNotionalUsd / initialEntry.price;
 
       const position = {
         id: `${accountKey}-${matchingRow.exchange}-${matchingRow.symbol}-${Date.now()}`,
@@ -200,15 +278,24 @@ export default function CatBotPage() {
         exchange: matchingRow.exchange,
         marketBucket: bucket,
         openedAt: new Date().toISOString(),
-        entryPrice: template.entryPrice,
+        entryPrice: initialEntry.price,
+        plannedAverageEntry: template.entryPrice,
         stopPrice: template.stopPrice,
         targetPrice: template.targetPrice,
         quantity,
         marginUsd,
         notionalUsd,
+        deployedNotionalUsd: initialNotionalUsd,
         leverage: accountKey === 'futures' ? account.leverage : 1,
         riskPct: template.riskPct,
         score: matchingRow.score,
+        strategyLabel: template.strategyLabel,
+        dcaEntries: template.entries.map((entry, index) => ({
+          ...entry,
+          filled: index === 0,
+          filledAt: index === 0 ? new Date().toISOString() : null,
+        })),
+        targetRMultiple: 2.6,
       };
 
       return {
@@ -240,23 +327,62 @@ export default function CatBotPage() {
             return;
           }
 
+          const nextEntries = position.dcaEntries.map((entry) => ({ ...entry }));
+          let nextQuantity = position.quantity;
+          let nextEntryPrice = position.entryPrice;
+          let nextDeployedNotionalUsd = position.deployedNotionalUsd;
+          let dcaFilledThisTick = false;
+
+          nextEntries.forEach((entry) => {
+            if (entry.filled || row.price > entry.price) return;
+            const legNotionalUsd = position.notionalUsd * entry.allocation;
+            const legQuantity = legNotionalUsd / entry.price;
+            const blendedQuantity = nextQuantity + legQuantity;
+            nextEntryPrice = ((nextEntryPrice * nextQuantity) + (entry.price * legQuantity)) / blendedQuantity;
+            nextQuantity = blendedQuantity;
+            nextDeployedNotionalUsd += legNotionalUsd;
+            entry.filled = true;
+            entry.filledAt = new Date().toISOString();
+            dcaFilledThisTick = true;
+          });
+
+          const riskPerUnit = Math.max(nextEntryPrice - position.stopPrice, nextEntryPrice * 0.005);
+          const refreshedTargetPrice = nextEntryPrice + riskPerUnit * position.targetRMultiple;
+
           const stopHit = row.price <= position.stopPrice;
-          const targetHit = row.price >= position.targetPrice;
+          const targetHit = row.price >= refreshedTargetPrice;
 
           if (!stopHit && !targetHit) {
-            nextOpenPositions.push(position);
+            nextOpenPositions.push(
+              dcaFilledThisTick
+                ? {
+                    ...position,
+                    quantity: nextQuantity,
+                    entryPrice: nextEntryPrice,
+                    deployedNotionalUsd: nextDeployedNotionalUsd,
+                    targetPrice: refreshedTargetPrice,
+                    dcaEntries: nextEntries,
+                  }
+                : position
+            );
             return;
           }
 
           changed = true;
-          const exitPrice = targetHit ? position.targetPrice : position.stopPrice;
-          const pnlUsd = (exitPrice - position.entryPrice) * position.quantity;
+          const exitPrice = targetHit ? refreshedTargetPrice : position.stopPrice;
+          const pnlUsd = (exitPrice - nextEntryPrice) * nextQuantity;
           closedPositions.push({
             ...position,
             closedAt: new Date().toISOString(),
             exitPrice,
             pnlUsd,
+            quantity: nextQuantity,
+            entryPrice: nextEntryPrice,
+            deployedNotionalUsd: nextDeployedNotionalUsd,
+            targetPrice: refreshedTargetPrice,
+            dcaEntries: nextEntries,
             result: pnlUsd > 0 ? 'WIN' : 'LOSS',
+            exitReason: targetHit ? 'TARGET_HIT' : 'STOP_HIT',
           });
         });
 
@@ -530,36 +656,18 @@ export default function CatBotPage() {
 
                     return (
                       <>
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-semibold text-white">{position.symbol}</p>
-                    <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-200">
-                      OPEN
-                    </span>
-                  </div>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-5 text-sm">
-                    <div>
-                      <p className="text-slate-500">Entry</p>
-                      <p className="mt-1 text-white">{formatPrice(position.entryPrice)}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500">Live Price</p>
-                      <p className="mt-1 text-white">{formatPrice(livePrice)}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500">Stop</p>
-                      <p className="mt-1 text-white">{formatPrice(position.stopPrice)}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500">Target</p>
-                      <p className="mt-1 text-white">{formatPrice(position.targetPrice)}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500">Live PnL</p>
-                      <p className={`mt-1 ${typeof livePnl === 'number' && livePnl >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
-                        {formatPrice(livePnl)}
-                      </p>
-                    </div>
-                  </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-white">{position.symbol}</p>
+                            <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500">
+                              {position.exchange.toUpperCase()} · {position.marketBucket.toUpperCase()} · x{position.leverage}
+                            </p>
+                          </div>
+                          <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-200">
+                            OPEN
+                          </span>
+                        </div>
+                        <PositionStrategyCard position={position} livePrice={livePrice} livePnl={livePnl} />
                       </>
                     );
                   })()}
@@ -590,6 +698,11 @@ export default function CatBotPage() {
                   <p className="mt-2 text-sm text-slate-400">
                     Entry {formatPrice(trade.entryPrice)} → Exit {formatPrice(trade.exitPrice)} · PnL {formatPrice(trade.pnlUsd)}
                   </p>
+                  <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-500">
+                    {trade.exitReason === 'TARGET_HIT' ? 'Closed by target' : trade.exitReason === 'STOP_HIT' ? 'Closed by stop' : 'Closed'}
+                    {' · '}
+                    {(trade.dcaEntries?.filter((entry) => entry.filled).length ?? 1)}/{trade.dcaEntries?.length ?? 1} DCA legs filled
+                  </p>
                 </div>
               ))}
             </div>
@@ -609,6 +722,11 @@ export default function CatBotPage() {
                   </div>
                   <p className="mt-2 text-sm text-slate-400">
                     Entry {formatPrice(trade.entryPrice)} → Exit {formatPrice(trade.exitPrice)} · PnL {formatPrice(trade.pnlUsd)}
+                  </p>
+                  <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-500">
+                    {trade.exitReason === 'TARGET_HIT' ? 'Closed by target' : trade.exitReason === 'STOP_HIT' ? 'Closed by stop' : 'Closed'}
+                    {' · '}
+                    {(trade.dcaEntries?.filter((entry) => entry.filled).length ?? 1)}/{trade.dcaEntries?.length ?? 1} DCA legs filled
                   </p>
                 </div>
               ))}
