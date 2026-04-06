@@ -229,6 +229,39 @@ function buildLinePath(values) {
     .join(' ');
 }
 
+function buildCandleGeometry(candles) {
+  if (!candles?.length) return { candles: [], min: 0, max: 0 };
+  const highs = candles.map((candle) => candle.high);
+  const lows = candles.map((candle) => candle.low);
+  const min = Math.min(...lows);
+  const max = Math.max(...highs);
+  const range = Math.max(max - min, 0.000001);
+  const step = 100 / Math.max(candles.length, 1);
+  const bodyWidth = Math.max(step * 0.56, 1.2);
+
+  const chartCandles = candles.map((candle, index) => {
+    const x = index * step + step / 2;
+    const openY = 100 - ((candle.open - min) / range) * 100;
+    const closeY = 100 - ((candle.close - min) / range) * 100;
+    const highY = 100 - ((candle.high - min) / range) * 100;
+    const lowY = 100 - ((candle.low - min) / range) * 100;
+    const isBullish = candle.close >= candle.open;
+    return {
+      x,
+      openY,
+      closeY,
+      highY,
+      lowY,
+      bodyY: Math.min(openY, closeY),
+      bodyHeight: Math.max(Math.abs(closeY - openY), 1.4),
+      bodyWidth,
+      isBullish,
+    };
+  });
+
+  return { candles: chartCandles, min, max };
+}
+
 function getTradingViewLink(row) {
   if (!row?.symbol) return 'https://www.tradingview.com/';
   if (row.exchange === 'binance') {
@@ -390,6 +423,7 @@ export default function DashboardPage() {
   const [telegramConfigured, setTelegramConfigured] = useState(false);
   const [telegramChatPreview, setTelegramChatPreview] = useState('');
   const [savedSetups, setSavedSetups] = useState([]);
+  const [savedAlertRules, setSavedAlertRules] = useState([]);
   const {
     backendStatus,
     moduleFilter,
@@ -459,6 +493,19 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem('amaia-alert-rules');
+      if (!stored) return;
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        setSavedAlertRules(parsed);
+      }
+    } catch {
+      // Ignore local alert rules parse issues.
+    }
+  }, []);
+
+  useEffect(() => {
     if (selectedSymbol && !rows.some((row) => row.symbol === selectedSymbol)) {
       setSelectedSymbol('');
     }
@@ -520,6 +567,7 @@ export default function DashboardPage() {
   const strongestRow = selectedRow;
   const averageScore = summary.averageScore ? summary.averageScore.toFixed(1) : '0.0';
   const chartCandles = useMemo(() => sliceCandlesForRange(strongestRow?.candles ?? [], chartRange), [chartRange, strongestRow]);
+  const candleGeometry = useMemo(() => buildCandleGeometry(chartCandles), [chartCandles]);
   const sparklinePath = useMemo(() => buildSparklinePath(chartCandles), [chartCandles]);
   const chartCloseValues = useMemo(() => chartCandles.map((candle) => candle.close), [chartCandles]);
   const ema20Path = useMemo(() => buildLinePath(calculateEmaSeries(chartCloseValues, 20)), [chartCloseValues]);
@@ -651,6 +699,32 @@ export default function DashboardPage() {
     setSavedSetups(nextSaved);
     try {
       window.localStorage.setItem('amaia-saved-setups', JSON.stringify(nextSaved));
+    } catch {
+      // Ignore local storage limits.
+    }
+  }
+
+  function handleSaveAlertRule() {
+    const nextRule = {
+      id: `rule-${Date.now()}`,
+      market: alertMarketFilter,
+      exchange: alertExchangeFilter,
+      score: alertScoreThreshold,
+    };
+    const nextRules = [nextRule, ...savedAlertRules].slice(0, 8);
+    setSavedAlertRules(nextRules);
+    try {
+      window.localStorage.setItem('amaia-alert-rules', JSON.stringify(nextRules));
+    } catch {
+      // Ignore local storage limits.
+    }
+  }
+
+  function handleRemoveAlertRule(ruleId) {
+    const nextRules = savedAlertRules.filter((rule) => rule.id !== ruleId);
+    setSavedAlertRules(nextRules);
+    try {
+      window.localStorage.setItem('amaia-alert-rules', JSON.stringify(nextRules));
     } catch {
       // Ignore local storage limits.
     }
@@ -990,7 +1064,30 @@ export default function DashboardPage() {
                               </linearGradient>
                             </defs>
                             <rect x="6" y="30" width="88" height="32" rx="8" fill="rgba(34,211,238,0.08)" stroke="rgba(34,211,238,0.18)" strokeDasharray="3 3" />
-                            <path d={sparklinePath} fill="none" stroke="url(#amaiaChartStroke)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                            {[20, 40, 60, 80].map((lineY) => (
+                              <path key={lineY} d={`M 0 ${lineY} L 100 ${lineY}`} stroke="rgba(148,163,184,0.08)" strokeWidth="0.6" strokeDasharray="2 2" />
+                            ))}
+                            {candleGeometry.candles.map((candle, index) => (
+                              <g key={`candle-${index}`}>
+                                <line
+                                  x1={candle.x}
+                                  x2={candle.x}
+                                  y1={candle.highY}
+                                  y2={candle.lowY}
+                                  stroke={candle.isBullish ? '#34d399' : '#f87171'}
+                                  strokeWidth="0.9"
+                                />
+                                <rect
+                                  x={candle.x - candle.bodyWidth / 2}
+                                  y={candle.bodyY}
+                                  width={candle.bodyWidth}
+                                  height={candle.bodyHeight}
+                                  rx="0.8"
+                                  fill={candle.isBullish ? 'rgba(52,211,153,0.75)' : 'rgba(248,113,113,0.78)'}
+                                />
+                              </g>
+                            ))}
+                            <path d={sparklinePath} fill="none" stroke="url(#amaiaChartStroke)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" opacity="0.55" />
                             {ema20Path ? <path d={ema20Path} fill="none" stroke="rgba(251,191,36,0.9)" strokeWidth="1.2" strokeDasharray="2 1.5" /> : null}
                             {ema50Path ? <path d={ema50Path} fill="none" stroke="rgba(244,114,182,0.85)" strokeWidth="1.2" strokeDasharray="4 2" /> : null}
                             {liquidityTrapMarkers.map((marker, index) => (
@@ -1413,6 +1510,39 @@ export default function DashboardPage() {
                     <span>10</span>
                   </div>
                 </label>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
+                <div className="text-sm text-slate-300">
+                  Regla activa: {alertMarketFilter}/{alertExchangeFilter}/score {alertScoreThreshold}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveAlertRule}
+                  className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-cyan-100 transition hover:bg-cyan-400/15"
+                >
+                  Save Rule
+                </button>
+              </div>
+              <div className="mt-4 space-y-3">
+                {savedAlertRules.map((rule) => (
+                  <div key={rule.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-slate-300">
+                    <span>
+                      {rule.market}/{rule.exchange}/score {rule.score}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAlertRule(rule.id)}
+                      className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-slate-300 transition hover:text-white"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                {savedAlertRules.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-4 text-sm text-slate-400">
+                    No saved alert rules yet. Guarda una combinacion de mercado, exchange y score para reutilizarla.
+                  </div>
+                ) : null}
               </div>
               <div className="mt-5 space-y-3">
                 {filteredAlerts.slice(0, 6).map((item) => (
