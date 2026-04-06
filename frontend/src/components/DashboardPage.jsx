@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 import AmaiaCopilotPanel from '@/src/components/AmaiaCopilotPanel';
@@ -458,6 +458,7 @@ export default function DashboardPage() {
   const [theme, setTheme] = useState('dark');
   const [viewMode, setViewMode] = useState('basic');
   const [showCompactRadar, setShowCompactRadar] = useState(false);
+  const [expandedRowId, setExpandedRowId] = useState(null);
   const [activeTradeModal, setActiveTradeModal] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSymbol, setSelectedSymbol] = useState('');
@@ -1692,43 +1693,127 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/6 bg-[rgba(4,8,22,0.62)]">
-                    {filteredRows.map((row) => (
-                      <tr key={row.id} className="transition hover:bg-white/[0.035]">
-                        <td className="px-5 py-4">
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-white">{row.symbol}</span>
-                            <div className="mt-2 flex flex-wrap items-center gap-2">
-                              <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getMarketTypeClass(row.marketType)}`}>
-                                {row.marketType.toUpperCase()}
-                              </span>
-                              <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
-                                {row.signalLabel}
-                              </span>
-                              <span className="text-xs uppercase tracking-[0.22em] text-slate-500">
-                                {row.exchange} · {row.narrativeLabel ?? row.narrative}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-5 py-4 text-sm text-slate-200">
-                          <div className="flex flex-col gap-1">
-                            <span>{row.instrumentType}</span>
-                            <span className="text-xs text-slate-500">{formatPrice(row.price)}</span>
-                          </div>
-                        </td>
-                        <td className="px-5 py-4 font-mono text-lg text-white">{row.score}</td>
-                        <td className="px-5 py-4 text-sm text-slate-200">{formatPercent(row.dumpPct)}</td>
-                        <td className="px-5 py-4 text-sm text-slate-200">{formatPercent(row.rangePct)}</td>
-                        <td className="px-5 py-4 text-sm text-slate-200">{typeof row.atrRatio === 'number' ? row.atrRatio.toFixed(4) : '--'}</td>
-                        <td className="px-5 py-4 text-sm text-slate-200">{row.volumePattern}</td>
-                        <td className="px-5 py-4">
-                          <div className="flex flex-col gap-2">
-                            <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${getStateClass(row.estado)}`}>{row.estado}</span>
-                            <span className="text-xs text-slate-500">{row.statusLabel}</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {filteredRows.map((row) => {
+                      const isExpanded = expandedRowId === row.id;
+                      return (
+                        <Fragment key={row.id}>
+                          <tr
+                            className="cursor-pointer transition hover:bg-white/[0.035]"
+                            onClick={() => setExpandedRowId((current) => (current === row.id ? null : row.id))}
+                          >
+                            <td className="px-5 py-4">
+                              <div className="flex flex-col">
+                                <div className="flex items-center gap-3">
+                                  <span className="font-semibold text-white">{row.symbol}</span>
+                                  <span className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-slate-400">
+                                    {isExpanded ? 'Open' : 'Details'}
+                                  </span>
+                                </div>
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                  <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getMarketTypeClass(row.marketType)}`}>
+                                    {row.marketType.toUpperCase()}
+                                  </span>
+                                  <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
+                                    {row.signalLabel}
+                                  </span>
+                                  <span className="text-xs uppercase tracking-[0.22em] text-slate-500">
+                                    {row.exchange} · {row.narrativeLabel ?? row.narrative}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-5 py-4 text-sm text-slate-200">
+                              <div className="flex flex-col gap-1">
+                                <span>{row.instrumentType}</span>
+                                <span className="text-xs text-slate-500">{formatPrice(row.price)}</span>
+                              </div>
+                            </td>
+                            <td className="px-5 py-4 font-mono text-lg text-white">{row.score}</td>
+                            <td className="px-5 py-4 text-sm text-slate-200">{formatPercent(row.dumpPct)}</td>
+                            <td className="px-5 py-4 text-sm text-slate-200">{formatPercent(row.rangePct)}</td>
+                            <td className="px-5 py-4 text-sm text-slate-200">{typeof row.atrRatio === 'number' ? row.atrRatio.toFixed(4) : '--'}</td>
+                            <td className="px-5 py-4 text-sm text-slate-200">{row.volumePattern}</td>
+                            <td className="px-5 py-4">
+                              <div className="flex flex-col gap-2">
+                                <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${getStateClass(row.estado)}`}>{row.estado}</span>
+                                <span className="text-xs text-slate-500">{row.statusLabel}</span>
+                              </div>
+                            </td>
+                          </tr>
+                          {isExpanded ? (
+                            <tr className="bg-white/[0.025]">
+                              <td colSpan="8" className="px-5 py-5">
+                                <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr_0.9fr]">
+                                  <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-4">
+                                    <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Setup Context</p>
+                                    <p className="mt-3 text-sm leading-7 text-slate-300">{row.setup}</p>
+                                    <div className="mt-4 grid gap-3 sm:grid-cols-3 text-sm">
+                                      <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
+                                        <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Price</p>
+                                        <p className="mt-2 text-white">{formatPrice(row.price)}</p>
+                                      </div>
+                                      <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
+                                        <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Volume</p>
+                                        <p className="mt-2 text-white">{formatVolume(row.volume)}</p>
+                                      </div>
+                                      <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
+                                        <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">24H Change</p>
+                                        <p className="mt-2 text-white">{typeof row.priceChange24h === 'number' ? `${row.priceChange24h.toFixed(2)}%` : '--'}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-4">
+                                    <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Signal Readout</p>
+                                    <div className="mt-4 space-y-3 text-sm text-slate-300">
+                                      <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
+                                        <span>Status</span>
+                                        <span className="font-semibold text-white">{row.statusLabel}</span>
+                                      </div>
+                                      <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
+                                        <span>Signal</span>
+                                        <span className="font-semibold text-emerald-300">{row.signalLabel}</span>
+                                      </div>
+                                      <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
+                                        <span>Narrative</span>
+                                        <span className="font-semibold text-cyan-200">{row.narrativeLabel ?? row.narrative}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-4">
+                                    <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Action Rail</p>
+                                    <div className="mt-4 flex flex-wrap gap-3">
+                                      <button
+                                        type="button"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          setSelectedSymbol(row.symbol);
+                                          setSearchTerm(row.symbol);
+                                        }}
+                                        className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-400/15"
+                                      >
+                                        Load in Chart
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          setSelectedSymbol(row.symbol);
+                                          setSearchTerm(row.symbol);
+                                          setActiveTradeModal('plan');
+                                        }}
+                                        className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-medium text-slate-200 transition hover:text-white"
+                                      >
+                                        Open Plan
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          ) : null}
+                        </Fragment>
+                      );
+                    })}
                     {!loading && filteredRows.length === 0 ? (
                       <tr>
                         <td colSpan="8" className="px-5 py-8 text-center text-sm text-slate-400">
