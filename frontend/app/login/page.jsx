@@ -11,7 +11,7 @@ export default function Page() {
   const sessionCookie = cookies().get('amaia-admin-session');
 
   if (sessionCookie?.value) {
-    redirect('/');
+    redirect('/terminal');
   }
 
   return <LoginPage />;

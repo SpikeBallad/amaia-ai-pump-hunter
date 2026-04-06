@@ -32,7 +32,7 @@ export default function LoginPage() {
           return;
         }
 
-        router.push('/');
+        router.push('/terminal');
         router.refresh();
       } catch {
         setError('La autenticacion local fallo. Revisa que Next.js este corriendo correctamente.');
