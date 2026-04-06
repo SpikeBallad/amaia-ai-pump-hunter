@@ -972,6 +972,88 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
+          <aside className="glass-panel h-fit rounded-[32px] p-5 xl:sticky xl:top-6">
+            <div className="flex items-center gap-3">
+              <BrandMark size="md" />
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Hunter Navigation</p>
+                <p className="mt-1 text-lg font-semibold text-white">Command Sidebar</p>
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-2">
+              {moduleOptions.map((option) => (
+                <button
+                  key={`sidebar-${option.value}`}
+                  type="button"
+                  onClick={() => setModuleFilter(option.value)}
+                  className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                    moduleFilter === option.value
+                      ? 'border-cyan-400/30 bg-cyan-400/12 text-cyan-100'
+                      : 'border-white/10 bg-white/[0.03] text-slate-300 hover:border-white/20'
+                  }`}
+                >
+                  <span>{option.label}</span>
+                  <span className="text-xs uppercase tracking-[0.22em] text-current/60">{moduleFilter === option.value ? 'Live' : 'Open'}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-5 grid gap-3">
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Quick Stats</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+                  <div>
+                    <p className="text-xs text-slate-500">Visible</p>
+                    <p className="mt-1 text-lg font-semibold text-white">{summary.visibleCount}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">High</p>
+                    <p className="mt-1 text-lg font-semibold text-emerald-300">{summary.highCount}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">Watchlist</p>
+                    <p className="mt-1 text-lg font-semibold text-amber-300">{summary.watchlistCount}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Workspace</p>
+                <div className="mt-3 space-y-2">
+                  <a
+                    href="/cat-bot"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-between rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/10 px-4 py-3 text-sm font-medium text-fuchsia-100 transition hover:bg-fuchsia-500/15"
+                  >
+                    <span>Open Cat Bot</span>
+                    <span className="text-xs uppercase tracking-[0.22em] text-current/60">New</span>
+                  </a>
+                  <a
+                    href="/onboarding"
+                    className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-200 transition hover:text-white"
+                  >
+                    <span>User Guide</span>
+                    <span className="text-xs uppercase tracking-[0.22em] text-current/60">Read</span>
+                  </a>
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-cyan-400/15 bg-cyan-400/[0.05] p-4">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Mode</p>
+                <p className="mt-2 text-sm font-semibold text-white">{isBasicView ? 'Friendly focus mode active' : 'Full pro desk active'}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-400">
+                  {isBasicView
+                    ? 'Vista limpia para leer setups, chart y oportunidades sin sobrecarga.'
+                    : 'Vista completa con radar, alert center, cache, delta y modulos cuantitativos.'}
+                </p>
+              </div>
+            </div>
+          </aside>
+
+          <div className="flex min-w-0 flex-col gap-6">
         <section className="grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
           <div className="glass-panel relative overflow-hidden rounded-[36px] p-6 sm:p-8">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.14),transparent_30%),radial-gradient(circle_at_80%_18%,rgba(52,211,153,0.12),transparent_24%)]" />
@@ -2489,6 +2571,9 @@ export default function DashboardPage() {
             </div>
           </div>
         </TradeDeskModal>
+
+          </div>
+        </div>
 
         {activeAlert ? (
           <div className="fixed bottom-6 right-6 z-50 w-[min(92vw,420px)] rounded-[28px] border border-emerald-400/20 bg-slate-950/92 p-5 shadow-[0_24px_90px_rgba(16,185,129,0.18)] backdrop-blur">
