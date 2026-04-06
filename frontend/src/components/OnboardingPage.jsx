@@ -10,7 +10,63 @@ function StepCard({ step, title, text }) {
   );
 }
 
+function VideoTrainingPanel({ videoUrl }) {
+  return (
+    <div className="rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-6">
+      <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Visual Onboarding</p>
+      <h2 className="mt-3 text-3xl font-semibold text-white">Clip guiado para activar al cliente</h2>
+      <p className="mt-4 text-sm leading-7 text-slate-400">
+        El onboarding funciona mejor con un video educativo corto. Aquí conviene explicar filtros, lectura del chart, execution plan,
+        Telegram y flujo operativo recomendado.
+      </p>
+      <div className="relative mt-6 overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.04),transparent_38%),linear-gradient(180deg,rgba(6,10,22,0.96),rgba(3,7,18,0.98))]">
+        {videoUrl ? (
+          <video
+            className="aspect-[16/9] w-full object-cover"
+            src={videoUrl}
+            autoPlay
+            muted
+            loop
+            playsInline
+            controls
+          />
+        ) : (
+          <div className="relative aspect-[16/9] w-full overflow-hidden">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(245,158,11,0.18),transparent_18%),radial-gradient(circle_at_80%_24%,rgba(34,211,238,0.14),transparent_16%),linear-gradient(180deg,rgba(4,8,22,0.48),rgba(3,7,18,0.92))]" />
+            <div className="absolute inset-0 flex flex-col justify-between p-6">
+              <div className="flex items-center justify-between gap-3">
+                <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-slate-300">
+                  Sora onboarding slot
+                </span>
+                <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200">
+                  30-45s guide
+                </span>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Step 1</p>
+                  <p className="mt-2 text-sm font-medium text-white">Filter market intentionally</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Step 2</p>
+                  <p className="mt-2 text-sm font-medium text-white">Read chart and status phase</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Step 3</p>
+                  <p className="mt-2 text-sm font-medium text-white">Execute with discipline</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function OnboardingPage() {
+  const onboardingVideoUrl = process.env.NEXT_PUBLIC_ONBOARDING_VIDEO_URL ?? '';
+
   return (
     <main className="min-h-screen px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-[1380px] flex-col gap-6">
@@ -79,6 +135,32 @@ export default function OnboardingPage() {
                   title="Filtra con intención"
                   text="Empieza con score alto, luego separa Spot/Futures y finalmente usa narrativa o exchange."
                 />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+          <VideoTrainingPanel videoUrl={onboardingVideoUrl} />
+          <div className="glass-panel rounded-[34px] p-6">
+            <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Onboarding Script</p>
+            <h2 className="mt-3 text-3xl font-semibold text-white">Guion del video educativo</h2>
+            <div className="mt-6 space-y-4 text-sm leading-7 text-slate-300">
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">0-8s</p>
+                <p className="mt-2">Explica que la plataforma no persigue pumps: busca acumulación antes del breakout.</p>
+              </div>
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">8-18s</p>
+                <p className="mt-2">Muestra All Setups, Spot, Futures y Watchlist con filtros correctos.</p>
+              </div>
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">18-30s</p>
+                <p className="mt-2">Abre un chart, explica acumulación, EMA20, EMA50, liquidity trap y status label.</p>
+              </div>
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">30-45s</p>
+                <p className="mt-2">Cierra con execution plan, Telegram y disciplina de riesgo: “Operate with structure, not emotion.”</p>
               </div>
             </div>
           </div>

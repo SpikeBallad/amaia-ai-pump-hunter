@@ -16,9 +16,76 @@ function PaymentButton({ href, label, tone = 'primary' }) {
   );
 }
 
+function VideoFeature({ eyebrow, title, description, videoUrl, posterTone = 'cyan', ctaLabel, ctaHref }) {
+  const toneClass =
+    posterTone === 'amber'
+      ? 'from-amber-400/18 via-amber-300/8 to-transparent'
+      : 'from-cyan-400/18 via-emerald-300/8 to-transparent';
+
+  return (
+    <div className="rounded-[34px] border border-white/10 bg-white/[0.03] p-6">
+      <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">{eyebrow}</p>
+      <h3 className="mt-3 text-3xl font-semibold text-white">{title}</h3>
+      <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-400">{description}</p>
+      <div className={`relative mt-6 overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.04),transparent_38%),linear-gradient(180deg,rgba(6,10,22,0.96),rgba(3,7,18,0.98))]`}>
+        {videoUrl ? (
+          <video
+            className="aspect-[16/9] w-full object-cover"
+            src={videoUrl}
+            autoPlay
+            muted
+            loop
+            playsInline
+            controls
+          />
+        ) : (
+          <div className={`relative aspect-[16/9] w-full overflow-hidden bg-gradient-to-br ${toneClass}`}>
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(34,211,238,0.22),transparent_18%),radial-gradient(circle_at_82%_28%,rgba(16,185,129,0.16),transparent_14%),linear-gradient(180deg,rgba(4,8,22,0.42),rgba(3,7,18,0.88))]" />
+            <div className="absolute inset-0 flex flex-col justify-between p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.32em] text-cyan-200/80">Sora Campaign Slot</p>
+                  <p className="mt-3 max-w-md text-2xl font-semibold text-white">Video placeholder listo para reemplazar por el render final.</p>
+                </div>
+                <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-slate-300">
+                  16:9 / autoplay
+                </span>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Hook</p>
+                  <p className="mt-2 text-sm font-medium text-white">Find pumps before they trend</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Visual</p>
+                  <p className="mt-2 text-sm font-medium text-white">Robotic cat desk + market radar</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">CTA</p>
+                  <p className="mt-2 text-sm font-medium text-white">Enter the hunter terminal</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      {ctaLabel && ctaHref ? (
+        <a
+          href={ctaHref}
+          className="mt-5 inline-flex items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15"
+        >
+          {ctaLabel}
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const stripeUrl = process.env.NEXT_PUBLIC_STRIPE_PAYMENT_URL ?? '/login';
   const paypalUrl = process.env.NEXT_PUBLIC_PAYPAL_PAYMENT_URL ?? '/login';
+  const marketingVideoUrl = process.env.NEXT_PUBLIC_MARKETING_VIDEO_URL ?? '';
+  const onboardingVideoUrl = process.env.NEXT_PUBLIC_ONBOARDING_VIDEO_URL ?? '';
 
   return (
     <main className="min-h-screen px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
@@ -105,6 +172,40 @@ export default function LandingPage() {
           </div>
         </section>
 
+        <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+          <VideoFeature
+            eyebrow="Hero Video"
+            title="Video de conversión para captar atención y mover a compra"
+            description="Este bloque está diseñado para alojar el clip principal de marketing: corto, elegante, oscuro, con ritmo premium y mensaje directo. Debe vender el edge del sistema en menos de 15 segundos."
+            videoUrl={marketingVideoUrl}
+            posterTone="cyan"
+            ctaLabel="Ir a onboarding visual"
+            ctaHref="/onboarding"
+          />
+          <div className="glass-panel rounded-[34px] p-6">
+            <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Sora Script</p>
+            <h2 className="mt-3 text-3xl font-semibold text-white">Guion premium para el video de venta</h2>
+            <div className="mt-6 space-y-4 text-sm leading-7 text-slate-300">
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">0-3s Hook</p>
+                <p className="mt-2">“Most traders chase pumps. Amaia finds them before they move.”</p>
+              </div>
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">3-8s Mechanism</p>
+                <p className="mt-2">Radar multi-exchange, score, liquidity traps, accumulation box y execution desk.</p>
+              </div>
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">8-12s Authority</p>
+                <p className="mt-2">Spot + Futures, Binance + MEXC, AI copilot, alert center y robotic hunter branding.</p>
+              </div>
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">12-15s CTA</p>
+                <p className="mt-2">“Enter the hunter terminal. Trade with structure, not noise.”</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="grid gap-6 xl:grid-cols-3">
           <div className="glass-panel rounded-[34px] p-6 xl:col-span-2">
             <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Marketing Strategy</p>
@@ -143,6 +244,30 @@ export default function LandingPage() {
               </a>
             </div>
           </div>
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="glass-panel rounded-[34px] p-6">
+            <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Creative Direction</p>
+            <h2 className="mt-3 text-3xl font-semibold text-white">Prompt base para Sora</h2>
+            <div className="mt-6 rounded-[28px] border border-white/10 bg-slate-950/60 p-5 text-sm leading-7 text-slate-300">
+              <p>
+                Create a premium cinematic fintech advertisement for “AMAIA AI PUMP HUNTER PRO”, a futuristic crypto intelligence
+                desk. Show a dark luxury trading environment with cyan and emerald highlights, a robotic hunter cat logo, multi-exchange
+                radar panels, accumulation boxes, EMA overlays, liquidity trap markers, and elegant motion graphics. The mood is
+                exclusive, sharp, institutional and high-conviction. Camera movement is smooth and controlled, with high contrast,
+                glass interfaces, terminal typography, polished reflections, and short conversion-focused pacing. End with a powerful
+                product lockup and CTA: “Enter the hunter terminal.”
+              </p>
+            </div>
+          </div>
+          <VideoFeature
+            eyebrow="Onboarding Preview"
+            title="Segundo video para explicar uso inteligente"
+            description="Este segundo clip debe vivir en onboarding. Aquí no vende tanto: enseña a filtrar, leer setups, revisar chart, usar execution plan y conectar alertas."
+            videoUrl={onboardingVideoUrl}
+            posterTone="amber"
+          />
         </section>
 
         <section className="glass-panel rounded-[34px] p-6">
