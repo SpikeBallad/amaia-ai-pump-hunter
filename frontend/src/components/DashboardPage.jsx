@@ -456,6 +456,7 @@ export default function DashboardPage() {
   const [isPending, startTransition] = useTransition();
   const [locale, setLocale] = useState('en');
   const [theme, setTheme] = useState('dark');
+  const [viewMode, setViewMode] = useState('basic');
   const [activeTradeModal, setActiveTradeModal] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSymbol, setSelectedSymbol] = useState('');
@@ -573,6 +574,9 @@ export default function DashboardPage() {
         loadAsset: 'Cargar activo',
         loadingAsset: 'Cargando...',
         viewingAsset: 'Asset en chart',
+        viewMode: 'Vista',
+        basic: 'Básica',
+        pro: 'Pro',
         chartRange: 'Rango',
         openTv: 'Abrir TradingView',
         language: 'Idioma',
@@ -591,6 +595,9 @@ export default function DashboardPage() {
         loadAsset: 'Load asset',
         loadingAsset: 'Loading...',
         viewingAsset: 'Chart asset',
+        viewMode: 'View',
+        basic: 'Basic',
+        pro: 'Pro',
         chartRange: 'Range',
         openTv: 'Open TradingView',
         language: 'Language',
@@ -695,6 +702,8 @@ export default function DashboardPage() {
           ? 'Spot Radar'
           : 'Cross Market';
   const coveragePctLabel = typeof coverage?.coverage_pct === 'number' ? `${coverage.coverage_pct.toFixed(1)}%` : '--';
+  const isBasicView = viewMode === 'basic';
+  const isProView = viewMode === 'pro';
 
   async function handleLookupAsset() {
     const normalizedSymbol = normalizeAssetQuery(selectedSymbol || searchTerm);
@@ -1015,6 +1024,13 @@ export default function DashboardPage() {
                       <button type="button" onClick={() => setTheme('light')} className={`rounded-full px-3 py-1 text-xs ${theme === 'light' ? 'bg-cyan-400/20 text-cyan-200' : 'bg-white/[0.05] text-slate-300'}`}>{t.light}</button>
                     </div>
                   </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-slate-200">
+                    <p className="text-[11px] uppercase tracking-[0.28em] text-current/70">{t.viewMode}</p>
+                    <div className="mt-2 flex gap-2">
+                      <button type="button" onClick={() => setViewMode('basic')} className={`rounded-full px-3 py-1 text-xs ${viewMode === 'basic' ? 'bg-cyan-400/20 text-cyan-200' : 'bg-white/[0.05] text-slate-300'}`}>{t.basic}</button>
+                      <button type="button" onClick={() => setViewMode('pro')} className={`rounded-full px-3 py-1 text-xs ${viewMode === 'pro' ? 'bg-cyan-400/20 text-cyan-200' : 'bg-white/[0.05] text-slate-300'}`}>{t.pro}</button>
+                    </div>
+                  </div>
                   <div className={`rounded-2xl border px-4 py-3 text-sm ${getSocketClass(socketStatus)}`}>
                     <p className="text-[11px] uppercase tracking-[0.28em] text-current/70">Socket</p>
                     <p className="mt-2 font-medium">{socketLabel}</p>
@@ -1063,31 +1079,53 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr_0.9fr_0.9fr_0.9fr]">
-                <div className="rounded-[28px] border border-cyan-400/15 bg-cyan-400/[0.05] p-4">
-                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Coverage</p>
-                  <p className="mt-3 text-2xl font-semibold text-cyan-200">{coveragePctLabel}</p>
-                  <p className="mt-2 text-sm text-slate-400">
-                    {coverage ? `${coverage.cached_pairs + coverage.refreshed_in_cycle} de ${coverage.eligible_pairs} elegibles ya analizados.` : 'Esperando metricas del scanner.'}
-                  </p>
+              {isBasicView ? (
+                <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+                  <div className="rounded-[28px] border border-cyan-400/15 bg-cyan-400/[0.05] p-4">
+                    <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Coverage</p>
+                    <p className="mt-3 text-2xl font-semibold text-cyan-200">{coveragePctLabel}</p>
+                    <p className="mt-2 text-sm text-slate-400">
+                      {coverage ? `${coverage.cached_pairs + coverage.refreshed_in_cycle} de ${coverage.eligible_pairs} elegibles ya analizados.` : 'Esperando metricas del scanner.'}
+                    </p>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
+                      <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Pairs Discovered</p>
+                      <p className="mt-3 text-lg font-semibold text-white">{coverage?.total_pairs_discovered ?? '--'}</p>
+                    </div>
+                    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
+                      <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Excluded Pumped</p>
+                      <p className="mt-3 text-lg font-semibold text-rose-300">{coverage?.excluded_pumped_pairs ?? '--'}</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
-                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Pairs Discovered</p>
-                  <p className="mt-3 text-lg font-semibold text-white">{coverage?.total_pairs_discovered ?? '--'}</p>
+              ) : (
+                <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr_0.9fr_0.9fr_0.9fr]">
+                  <div className="rounded-[28px] border border-cyan-400/15 bg-cyan-400/[0.05] p-4">
+                    <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Coverage</p>
+                    <p className="mt-3 text-2xl font-semibold text-cyan-200">{coveragePctLabel}</p>
+                    <p className="mt-2 text-sm text-slate-400">
+                      {coverage ? `${coverage.cached_pairs + coverage.refreshed_in_cycle} de ${coverage.eligible_pairs} elegibles ya analizados.` : 'Esperando metricas del scanner.'}
+                    </p>
+                  </div>
+                  <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
+                    <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Pairs Discovered</p>
+                    <p className="mt-3 text-lg font-semibold text-white">{coverage?.total_pairs_discovered ?? '--'}</p>
+                  </div>
+                  <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
+                    <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Eligible</p>
+                    <p className="mt-3 text-lg font-semibold text-emerald-300">{coverage?.eligible_pairs ?? '--'}</p>
+                  </div>
+                  <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
+                    <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Refreshed Cycle</p>
+                    <p className="mt-3 text-lg font-semibold text-cyan-300">{coverage?.refreshed_in_cycle ?? '--'}</p>
+                  </div>
+                  <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
+                    <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Excluded Pumped</p>
+                    <p className="mt-3 text-lg font-semibold text-rose-300">{coverage?.excluded_pumped_pairs ?? '--'}</p>
+                  </div>
                 </div>
-                <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
-                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Eligible</p>
-                  <p className="mt-3 text-lg font-semibold text-emerald-300">{coverage?.eligible_pairs ?? '--'}</p>
-                </div>
-                <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
-                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Refreshed Cycle</p>
-                  <p className="mt-3 text-lg font-semibold text-cyan-300">{coverage?.refreshed_in_cycle ?? '--'}</p>
-                </div>
-                <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
-                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Excluded Pumped</p>
-                  <p className="mt-3 text-lg font-semibold text-rose-300">{coverage?.excluded_pumped_pairs ?? '--'}</p>
-                </div>
-              </div>
+              )}
 
               <div className="grid gap-4 xl:grid-cols-[1.15fr_0.8fr_0.8fr]">
                 <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
@@ -1549,7 +1587,7 @@ export default function DashboardPage() {
 
         {error ? <div className="rounded-[28px] border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-200">{error}</div> : null}
 
-        <section className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+        <section className={`grid gap-6 ${isBasicView ? 'xl:grid-cols-1' : 'xl:grid-cols-[1.25fr_0.75fr]'}`}>
           <div className="glass-panel rounded-[36px] p-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -1630,8 +1668,9 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="grid gap-6">
-            <div className="glass-panel rounded-[36px] p-6">
+          {isProView ? (
+            <div className="grid gap-6">
+              <div className="glass-panel rounded-[36px] p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Cache Monitor</p>
@@ -1964,11 +2003,84 @@ export default function DashboardPage() {
                   </div>
                 ) : null}
               </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="glass-panel rounded-[36px] p-6">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Watchlist Module</p>
+                  <h2 className="mt-2 text-xl font-semibold text-white">Pre-Pump Candidates</h2>
+                </div>
+                <div className="mt-5 space-y-3">
+                  {watchlistRows.slice(0, 4).map((row, index) => (
+                    <div key={`${row.market_type}-${row.exchange}-${row.symbol}-${index}`} className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-white">{row.symbol}</p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.22em] text-slate-500">
+                            {row.exchange} · {row.market_type}
+                          </p>
+                        </div>
+                        <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-300">
+                          Score {row.score}
+                        </span>
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-slate-400">{row.setup}</p>
+                    </div>
+                  ))}
+                  {watchlistRows.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-5 text-sm text-slate-400">
+                      No hay activos en pre-pump watchlist ahora mismo.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              <div className="glass-panel rounded-[36px] p-6">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Alert Snapshot</p>
+                  <h2 className="mt-2 text-xl font-semibold text-white">Live Priority Queue</h2>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-500">High Alerts</p>
+                    <p className="mt-2 text-xl font-semibold text-emerald-300">{filteredAlerts.filter((item) => item.estado === 'HIGH').length}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Watch Alerts</p>
+                    <p className="mt-2 text-xl font-semibold text-amber-300">{filteredAlerts.filter((item) => item.estado === 'WATCHLIST').length}</p>
+                  </div>
+                </div>
+                <div className="mt-5 space-y-3">
+                  {filteredAlerts.slice(0, 4).map((item) => (
+                    <div key={item.id} className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="font-semibold text-white">{item.symbol}</p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.22em] text-slate-500">
+                            {item.exchange} · {item.marketType} · {item.narrativeLabel ?? item.narrative}
+                          </p>
+                        </div>
+                        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${getStateClass(item.estado)}`}>{item.estado}</span>
+                      </div>
+                      <div className="mt-3 flex items-center justify-between text-sm text-slate-400">
+                        <span>Score {item.score}</span>
+                        <span>{formatTime(new Date(item.createdAt))}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {filteredAlerts.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-5 text-sm text-slate-400">
+                      No alerts match the current filters.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          )}
         </section>
 
-        <AmaiaCopilotPanel />
+        {isProView ? <AmaiaCopilotPanel /> : null}
 
         <TradeDeskModal
           open={activeTradeModal === 'entries'}
