@@ -1,3 +1,8 @@
+'use client';
+
+import { useEffect } from 'react';
+
+import { trackEvent } from '@/src/lib/analytics';
 import BrandMark from '@/src/components/BrandMark';
 
 function StepCard({ step, title, text }) {
@@ -66,6 +71,10 @@ function VideoTrainingPanel({ videoUrl }) {
 
 export default function OnboardingPage() {
   const onboardingVideoUrl = process.env.NEXT_PUBLIC_ONBOARDING_VIDEO_URL ?? '';
+
+  useEffect(() => {
+    trackEvent('onboarding_page_viewed', { source: 'public_funnel' });
+  }, []);
 
   return (
     <main className="min-h-screen px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
@@ -193,13 +202,25 @@ export default function OnboardingPage() {
             <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Links</p>
             <h2 className="mt-3 text-3xl font-semibold text-white">Accesos rápidos</h2>
             <div className="mt-6 grid gap-3">
-              <a href="/login" className="inline-flex items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15">
+              <a
+                href="/login"
+                onClick={() => trackEvent('onboarding_cta_clicked', { destination: 'login' })}
+                className="inline-flex items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15"
+              >
                 Ir a Login
               </a>
-              <a href="/terminal" className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]">
+              <a
+                href="/terminal"
+                onClick={() => trackEvent('onboarding_cta_clicked', { destination: 'terminal' })}
+                className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]"
+              >
                 Abrir Terminal
               </a>
-              <a href="/" className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]">
+              <a
+                href="/"
+                onClick={() => trackEvent('onboarding_cta_clicked', { destination: 'landing' })}
+                className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]"
+              >
                 Volver a Landing
               </a>
             </div>

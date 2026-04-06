@@ -1,4 +1,5 @@
 import './globals.css';
+import AnalyticsProvider from '@/src/components/AnalyticsProvider';
 
 export const metadata = {
   title: 'AMAIA AI PUMP HUNTER PRO',
@@ -8,7 +9,10 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="es">
-      <body>{children}</body>
+      <body>
+        {children}
+        <AnalyticsProvider />
+      </body>
     </html>
   );
 }

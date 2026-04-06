@@ -1,3 +1,8 @@
+'use client';
+
+import { useEffect } from 'react';
+
+import { trackEvent } from '@/src/lib/analytics';
 import BrandMark from '@/src/components/BrandMark';
 
 function ActionCard({ eyebrow, title, text, href, label, tone = 'primary' }) {
@@ -22,6 +27,10 @@ function ActionCard({ eyebrow, title, text, href, label, tone = 'primary' }) {
 }
 
 export default function ThankYouPage() {
+  useEffect(() => {
+    trackEvent('purchase_completed', { source: 'thank_you_page', plan: 'pro_monthly_79' });
+  }, []);
+
   return (
     <main className="min-h-screen px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-[1320px] flex-col gap-6">

@@ -1,6 +1,9 @@
+'use client';
+
+import { trackEvent } from '@/src/lib/analytics';
 import BrandMark from '@/src/components/BrandMark';
 
-function PaymentButton({ href, label, tone = 'primary' }) {
+function PaymentButton({ href, label, tone = 'primary', analyticsName, analyticsPayload }) {
   const className =
     tone === 'primary'
       ? 'border-amber-400/30 bg-amber-400/12 text-amber-100 hover:bg-amber-400/18'
@@ -9,6 +12,7 @@ function PaymentButton({ href, label, tone = 'primary' }) {
   return (
     <a
       href={href}
+      onClick={() => trackEvent(analyticsName ?? 'cta_clicked', analyticsPayload ?? { label })}
       className={`inline-flex items-center justify-center rounded-2xl border px-5 py-3 text-sm font-semibold transition ${className}`}
     >
       {label}
@@ -132,6 +136,21 @@ export default function LandingPage() {
     <main className="min-h-screen px-4 py-6 text-slate-100 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-[1480px] flex-col gap-6">
         <section className="glass-panel overflow-hidden rounded-[40px] p-8 sm:p-10">
+          <div className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-[24px] border border-amber-400/15 bg-[linear-gradient(90deg,rgba(245,158,11,0.12),rgba(245,158,11,0.04),transparent)] px-5 py-4">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.3em] text-amber-200/80">Founding Members Pricing</p>
+              <p className="mt-2 text-sm font-semibold text-white sm:text-base">
+                Acceso inicial a €79/mes mientras Amaia está en fase de crecimiento premium.
+              </p>
+            </div>
+            <a
+              href={stripeUrl}
+              onClick={() => trackEvent('founding_banner_clicked', { destination: 'stripe', plan: 'pro_monthly_79' })}
+              className="inline-flex items-center justify-center rounded-2xl border border-amber-400/25 bg-amber-400/12 px-4 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/18"
+            >
+              Claim founding access
+            </a>
+          </div>
           <div className="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
             <div className="space-y-8">
               <div className="flex items-start gap-5">
@@ -202,8 +221,19 @@ export default function LandingPage() {
                   Acceso al scanner multi-market, execution desk, copilot Amaia AI, alertas y módulos premium.
                 </p>
                 <div className="mt-5 grid gap-3">
-                  <PaymentButton href={stripeUrl} label="Pagar con Stripe" />
-                  <PaymentButton href={paypalUrl} label="Pagar con PayPal" tone="secondary" />
+                  <PaymentButton
+                    href={stripeUrl}
+                    label="Pagar con Stripe"
+                    analyticsName="payment_cta_clicked"
+                    analyticsPayload={{ provider: 'stripe', placement: 'pricing_card', plan: 'pro_monthly_79' }}
+                  />
+                  <PaymentButton
+                    href={paypalUrl}
+                    label="Pagar con PayPal"
+                    tone="secondary"
+                    analyticsName="payment_cta_clicked"
+                    analyticsPayload={{ provider: 'paypal', placement: 'pricing_card', plan: 'pro_monthly_79' }}
+                  />
                 </div>
                 <p className="mt-4 text-xs leading-6 text-slate-500">
                   Recomendado: configura Stripe o PayPal para redirigir después del pago a <span className="text-slate-300">/thank-you</span>.
@@ -218,6 +248,7 @@ export default function LandingPage() {
                 </ul>
                 <a
                   href="/onboarding"
+                  onClick={() => trackEvent('onboarding_preview_clicked', { placement: 'pricing_card' })}
                   className="mt-5 inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]"
                 >
                   Ver onboarding del cliente
@@ -309,10 +340,18 @@ export default function LandingPage() {
               Si ya pagaste o ya tienes acceso privado, entra al command center y usa la terminal completa.
             </p>
             <div className="mt-6 grid gap-3">
-              <a href="/login" className="inline-flex items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15">
+              <a
+                href="/login"
+                onClick={() => trackEvent('terminal_access_clicked', { destination: 'login' })}
+                className="inline-flex items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/15"
+              >
                 Ir a Login
               </a>
-              <a href="/terminal" className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]">
+              <a
+                href="/terminal"
+                onClick={() => trackEvent('terminal_access_clicked', { destination: 'terminal' })}
+                className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]"
+              >
                 Abrir Terminal
               </a>
             </div>
@@ -492,12 +531,14 @@ export default function LandingPage() {
           <div className="flex shrink-0 items-center gap-3">
             <a
               href={stripeUrl}
+              onClick={() => trackEvent('sticky_cta_clicked', { destination: 'stripe', plan: 'pro_monthly_79' })}
               className="inline-flex items-center justify-center rounded-2xl border border-amber-400/25 bg-amber-400/12 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/18"
             >
               Stripe
             </a>
             <a
               href="/thank-you"
+              onClick={() => trackEvent('sticky_cta_clicked', { destination: 'thank_you_preview' })}
               className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-white/[0.08]"
             >
               Ver flujo
