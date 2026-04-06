@@ -457,6 +457,7 @@ export default function DashboardPage() {
   const [locale, setLocale] = useState('en');
   const [theme, setTheme] = useState('dark');
   const [viewMode, setViewMode] = useState('basic');
+  const [showCompactRadar, setShowCompactRadar] = useState(false);
   const [activeTradeModal, setActiveTradeModal] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSymbol, setSelectedSymbol] = useState('');
@@ -1221,6 +1222,29 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              <div className="grid gap-4 xl:grid-cols-4">
+                <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(14,23,45,0.9),rgba(6,12,28,0.9))] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Overview Cockpit</p>
+                  <p className="mt-3 text-lg font-semibold text-white">{marketModeLabel}</p>
+                  <p className="mt-2 text-sm text-slate-400">Vista principal de la mision activa.</p>
+                </div>
+                <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Exchange Lens</p>
+                  <p className="mt-3 text-lg font-semibold text-white">{exchangeFilter === 'all' ? 'All Venues' : exchangeFilter.toUpperCase()}</p>
+                  <p className="mt-2 text-sm text-slate-400">{marketTypeFilter === 'all' ? 'Cross-market' : marketTypeFilter}</p>
+                </div>
+                <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Filter Floor</p>
+                  <p className="mt-3 text-lg font-semibold text-cyan-300">Score {scoreFilter}</p>
+                  <p className="mt-2 text-sm text-slate-400">{filteredRows.length} activos visibles listos para lectura.</p>
+                </div>
+                <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">
+                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Desk Tempo</p>
+                  <p className="mt-3 text-lg font-semibold text-white">{detectSession(sessionNow)}</p>
+                  <p className="mt-2 text-sm text-slate-400">{formatTime(lastUpdated)} · radar sincronizado.</p>
+                </div>
+              </div>
+
               <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
                 <div className="rounded-[30px] border border-white/10 bg-slate-950/70 p-5">
                   <div className="flex items-center justify-between gap-4">
@@ -1516,62 +1540,112 @@ export default function DashboardPage() {
                 <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Top 10</p>
                 <h2 className="mt-2 text-2xl font-semibold text-white">Hot Opportunities</h2>
               </div>
-              <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs uppercase tracking-[0.24em] text-slate-400">
-                {formatTime(lastUpdated)}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCompactRadar((current) => !current)}
+                  className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs uppercase tracking-[0.22em] text-cyan-200 transition hover:bg-cyan-400/15"
+                >
+                  {showCompactRadar ? 'Expand' : 'Compact'}
+                </button>
+                <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs uppercase tracking-[0.24em] text-slate-400">
+                  {formatTime(lastUpdated)}
+                </div>
               </div>
             </div>
 
-              <div className="mt-5 space-y-3">
-              {topPanelRows.slice(0, 10).map((row, index) => (
-                <div key={`${row.market_type}-${row.exchange}-${row.symbol}`} className="rounded-[26px] border border-white/10 bg-white/[0.03] p-4 transition hover:border-cyan-400/20 hover:bg-white/[0.05]">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs uppercase tracking-[0.26em] text-slate-500">#{String(index + 1).padStart(2, '0')}</span>
-                        <h3 className="text-lg font-semibold text-white">{row.symbol}</h3>
+              {showCompactRadar ? (
+                <div className="mt-5 grid gap-3">
+                  {topPanelRows.slice(0, 4).map((row, index) => (
+                    <button
+                      key={`${row.market_type}-${row.exchange}-${row.symbol}`}
+                      type="button"
+                      onClick={() => {
+                        setSelectedSymbol(row.symbol);
+                        setSearchTerm(row.symbol);
+                      }}
+                      className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4 text-left transition hover:border-cyan-400/20 hover:bg-white/[0.05]"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">#{String(index + 1).padStart(2, '0')}</p>
+                          <p className="mt-2 text-lg font-semibold text-white">{row.symbol}</p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.22em] text-slate-500">
+                            {row.exchange.toUpperCase()} · {row.market_type.toUpperCase()}
+                          </p>
+                        </div>
+                        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${getStateClass(row.estado)}`}>{row.estado}</span>
                       </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getMarketTypeClass(row.market_type)}`}>
-                          {row.market_type.toUpperCase()}
-                        </span>
-                        <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
-                          {row.signal_label}
-                        </span>
-                        <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-slate-300">
-                          {row.status_label}
-                        </span>
-                        <span className="text-sm text-slate-400">{row.exchange.toUpperCase()} · {row.narrative_label ?? row.narrative}</span>
+                      <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
+                        <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-2">
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Score</p>
+                          <p className="mt-1 font-semibold text-white">{row.score}</p>
+                        </div>
+                        <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-2">
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Dump</p>
+                          <p className="mt-1 text-slate-200">{formatPercent(row.dump_pct)}</p>
+                        </div>
+                        <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-2">
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Range</p>
+                          <p className="mt-1 text-slate-200">{formatPercent(row.range_pct)}</p>
+                        </div>
                       </div>
-                    </div>
-                    <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${getStateClass(row.estado)}`}>{row.estado}</span>
-                  </div>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-4">
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.26em] text-slate-500">Score</p>
-                      <p className="mt-2 text-3xl font-semibold text-white">{row.score}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.26em] text-slate-500">Dump</p>
-                      <p className="mt-2 text-sm text-slate-200">{formatPercent(row.dump_pct)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.26em] text-slate-500">Range</p>
-                      <p className="mt-2 text-sm text-slate-200">{formatPercent(row.range_pct)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-[0.26em] text-slate-500">ATR Ratio</p>
-                      <p className="mt-2 text-sm text-slate-200">{typeof row.atr_ratio === 'number' ? row.atr_ratio.toFixed(4) : '--'}</p>
-                    </div>
-                  </div>
-                  <p className="mt-4 text-sm leading-6 text-slate-400">{row.setup}</p>
+                    </button>
+                  ))}
                 </div>
-              ))}
+              ) : (
+                <div className="mt-5 space-y-3">
+                  {topPanelRows.slice(0, 10).map((row, index) => (
+                    <div key={`${row.market_type}-${row.exchange}-${row.symbol}`} className="rounded-[26px] border border-white/10 bg-white/[0.03] p-4 transition hover:border-cyan-400/20 hover:bg-white/[0.05]">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs uppercase tracking-[0.26em] text-slate-500">#{String(index + 1).padStart(2, '0')}</span>
+                            <h3 className="text-lg font-semibold text-white">{row.symbol}</h3>
+                          </div>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getMarketTypeClass(row.market_type)}`}>
+                              {row.market_type.toUpperCase()}
+                            </span>
+                            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
+                              {row.signal_label}
+                            </span>
+                            <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-slate-300">
+                              {row.status_label}
+                            </span>
+                            <span className="text-sm text-slate-400">{row.exchange.toUpperCase()} · {row.narrative_label ?? row.narrative}</span>
+                          </div>
+                        </div>
+                        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${getStateClass(row.estado)}`}>{row.estado}</span>
+                      </div>
+                      <div className="mt-4 grid gap-3 sm:grid-cols-4">
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.26em] text-slate-500">Score</p>
+                          <p className="mt-2 text-3xl font-semibold text-white">{row.score}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.26em] text-slate-500">Dump</p>
+                          <p className="mt-2 text-sm text-slate-200">{formatPercent(row.dump_pct)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.26em] text-slate-500">Range</p>
+                          <p className="mt-2 text-sm text-slate-200">{formatPercent(row.range_pct)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs uppercase tracking-[0.26em] text-slate-500">ATR Ratio</p>
+                          <p className="mt-2 text-sm text-slate-200">{typeof row.atr_ratio === 'number' ? row.atr_ratio.toFixed(4) : '--'}</p>
+                        </div>
+                      </div>
+                      <p className="mt-4 text-sm leading-6 text-slate-400">{row.setup}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
               {!loading && topPanelRows.length === 0 ? (
                 <div className="rounded-[26px] border border-dashed border-white/10 bg-white/[0.02] p-6 text-sm text-slate-400">
                   No hay oportunidades con los filtros actuales.
                 </div>
               ) : null}
-            </div>
           </aside>
         </section>
 
