@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import AmaiaCopilotPanel from '@/src/components/AmaiaCopilotPanel';
 import BrandMark from '@/src/components/BrandMark';
 import { useMarket } from '@/src/context/MarketContext';
+import { fetchScan } from '@/src/lib/api';
 import { loadTelegramSettings, saveTelegramSettings, sendTelegramAlert } from '@/src/lib/alerts';
 
 const stateStyles = {
@@ -46,6 +47,55 @@ const marketPillStyles = {
 };
 
 const chartRangeOptions = ['1D', '1W', '1M'];
+
+function normalizeAssetQuery(rawValue) {
+  const cleaned = (rawValue ?? '')
+    .toUpperCase()
+    .replace(/\s+/g, '')
+    .replace(/\//g, '')
+    .replace(/-/g, '');
+
+  if (!cleaned) return '';
+  if (cleaned.endsWith('USDT')) return cleaned;
+  return `${cleaned}USDT`;
+}
+
+function getLookupTimeframe(chartRange) {
+  return chartRange === '1D' ? '4H' : '1D';
+}
+
+function mapScanResultToRow(scan) {
+  return {
+    id: `${scan.market_type}-${scan.exchange}-${scan.symbol}`,
+    symbol: scan.symbol,
+    exchange: scan.exchange,
+    marketType: scan.market_type,
+    marketBucket: scan.market_type?.endsWith?.('FUTURES') ? 'futures' : 'spot',
+    instrumentType: scan.instrument_type,
+    narrative: scan.narrative,
+    narrativeLabel: scan.narrative_label,
+    price: scan.price ?? scan.indicators?.last_close ?? null,
+    score: scan.score,
+    estado: scan.estado,
+    statusLabel: scan.status_label,
+    volume: scan.volume ?? scan.indicators?.avg_volume_20 ?? null,
+    volatility: scan.indicators?.atr_pct ?? null,
+    atrRatio: scan.atr_ratio,
+    dumpPct: scan.dump_pct,
+    rangePct: scan.range_pct,
+    volumePattern: scan.volume_pattern,
+    explanation: scan.explanation,
+    change24h: scan.change_24h,
+    lowCap: scan.low_cap,
+    silentMarket: scan.silent_market,
+    isBreakingOut: scan.is_breaking_out,
+    summary: scan.summary,
+    signalLabel: scan.signal_label,
+    signalStrength: scan.signal_strength,
+    scoreBreakdown: scan.score_breakdown,
+    candles: scan.ohlcv?.candles ?? [],
+  };
+}
 
 function formatPrice(value) {
   if (typeof value !== 'number') return '--';
@@ -410,6 +460,9 @@ export default function DashboardPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSymbol, setSelectedSymbol] = useState('');
   const [chartRange, setChartRange] = useState('1W');
+  const [assetLookupRow, setAssetLookupRow] = useState(null);
+  const [assetLookupLoading, setAssetLookupLoading] = useState(false);
+  const [assetLookupError, setAssetLookupError] = useState('');
   const [sessionNow, setSessionNow] = useState(() => new Date());
   const [alertMarketFilter, setAlertMarketFilter] = useState('all');
   const [alertExchangeFilter, setAlertExchangeFilter] = useState('all');
@@ -507,16 +560,19 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (selectedSymbol && !rows.some((row) => row.symbol === selectedSymbol)) {
+    if (selectedSymbol && !rows.some((row) => row.symbol === selectedSymbol) && assetLookupRow?.symbol !== selectedSymbol) {
       setSelectedSymbol('');
     }
-  }, [rows, selectedSymbol]);
+  }, [assetLookupRow, rows, selectedSymbol]);
 
   const t = locale === 'es'
     ? {
         search: 'Buscar activo',
         searchPlaceholder: 'BTC, ETH, SOL, XRP...',
         assetView: 'Vista de Activo',
+        loadAsset: 'Cargar activo',
+        loadingAsset: 'Cargando...',
+        viewingAsset: 'Asset en chart',
         chartRange: 'Rango',
         openTv: 'Abrir TradingView',
         language: 'Idioma',
@@ -532,6 +588,9 @@ export default function DashboardPage() {
         search: 'Search Asset',
         searchPlaceholder: 'BTC, ETH, SOL, XRP...',
         assetView: 'Asset View',
+        loadAsset: 'Load asset',
+        loadingAsset: 'Loading...',
+        viewingAsset: 'Chart asset',
         chartRange: 'Range',
         openTv: 'Open TradingView',
         language: 'Language',
@@ -558,12 +617,23 @@ export default function DashboardPage() {
     return rows.filter((row) => row.symbol.toLowerCase().includes(query) || row.narrativeLabel?.toLowerCase().includes(query));
   }, [rows, searchTerm]);
 
+  const assetOptions = useMemo(() => {
+    const uniqueRows = new Map();
+    if (assetLookupRow) {
+      uniqueRows.set(assetLookupRow.symbol, assetLookupRow);
+    }
+    searchableRows.slice(0, 20).forEach((row) => {
+      uniqueRows.set(row.symbol, row);
+    });
+    return Array.from(uniqueRows.values());
+  }, [assetLookupRow, searchableRows]);
+
   const selectedRow = useMemo(() => {
     if (selectedSymbol) {
-      return rows.find((row) => row.symbol === selectedSymbol) ?? null;
+      return rows.find((row) => row.symbol === selectedSymbol) ?? (assetLookupRow?.symbol === selectedSymbol ? assetLookupRow : null);
     }
-    return searchableRows[0] ?? topPanelRows[0] ?? null;
-  }, [rows, searchableRows, selectedSymbol, topPanelRows]);
+    return assetLookupRow ?? searchableRows[0] ?? topPanelRows[0] ?? null;
+  }, [assetLookupRow, rows, searchableRows, selectedSymbol, topPanelRows]);
 
   const strongestRow = selectedRow;
   const averageScore = summary.averageScore ? summary.averageScore.toFixed(1) : '0.0';
@@ -625,6 +695,48 @@ export default function DashboardPage() {
           ? 'Spot Radar'
           : 'Cross Market';
   const coveragePctLabel = typeof coverage?.coverage_pct === 'number' ? `${coverage.coverage_pct.toFixed(1)}%` : '--';
+
+  async function handleLookupAsset() {
+    const normalizedSymbol = normalizeAssetQuery(selectedSymbol || searchTerm);
+    if (!normalizedSymbol) {
+      setAssetLookupError(locale === 'es' ? 'Escribe un simbolo para cargarlo en el chart.' : 'Enter a symbol to load it into the chart.');
+      return;
+    }
+
+    const lookupMarketType = marketTypeFilter === 'all' ? 'spot' : marketTypeFilter;
+    const lookupExchange = exchangeFilter === 'all' ? 'auto' : exchangeFilter;
+
+    try {
+      setAssetLookupLoading(true);
+      setAssetLookupError('');
+      const scan = await fetchScan({
+        symbol: normalizedSymbol,
+        exchange: lookupExchange,
+        marketType: lookupMarketType,
+        timeframe: getLookupTimeframe(chartRange),
+      });
+      const nextRow = mapScanResultToRow(scan);
+      setAssetLookupRow(nextRow);
+      setSelectedSymbol(nextRow.symbol);
+      setSearchTerm(nextRow.symbol);
+    } catch (error) {
+      setAssetLookupRow(null);
+      setAssetLookupError(
+        error?.response?.data?.detail ||
+          error?.message ||
+          (locale === 'es' ? 'No se pudo cargar el activo solicitado.' : 'Could not load the requested asset.')
+      );
+    } finally {
+      setAssetLookupLoading(false);
+    }
+  }
+
+  function handleSearchKeyDown(event) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      void handleLookupAsset();
+    }
+  }
 
   async function handleSendCurrentSetupToTelegram() {
     if (!strongestRow || !tradePlan) {
@@ -978,22 +1090,45 @@ export default function DashboardPage() {
                         type="text"
                         value={searchTerm}
                         onChange={(event) => setSearchTerm(event.target.value)}
+                        onKeyDown={handleSearchKeyDown}
                         placeholder={t.searchPlaceholder}
                         className="w-full bg-transparent text-sm text-slate-100 outline-none"
                       />
                     </div>
                     <select
                       value={selectedSymbol}
-                      onChange={(event) => setSelectedSymbol(event.target.value)}
+                      onChange={(event) => {
+                        setSelectedSymbol(event.target.value);
+                        setSearchTerm(event.target.value);
+                      }}
                       className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-slate-100 outline-none"
                     >
                       <option value="">{t.assetView}</option>
-                      {searchableRows.slice(0, 20).map((row) => (
+                      {assetOptions.map((row) => (
                         <option key={row.id} value={row.symbol}>
                           {row.symbol}
                         </option>
                       ))}
                     </select>
+                    <button
+                      type="button"
+                      onClick={() => void handleLookupAsset()}
+                      disabled={assetLookupLoading}
+                      className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-medium text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {assetLookupLoading ? t.loadingAsset : t.loadAsset}
+                    </button>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+                    <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-slate-300">
+                      {t.viewingAsset}: {strongestRow?.symbol ?? '--'}
+                    </span>
+                    {assetLookupRow ? (
+                      <span className="rounded-full border border-cyan-500/15 bg-cyan-500/8 px-3 py-1 text-cyan-200">
+                        {assetLookupRow.symbol} loaded via scanner
+                      </span>
+                    ) : null}
+                    {assetLookupError ? <span className="text-rose-300">{assetLookupError}</span> : null}
                   </div>
                 </div>
                 <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-4">

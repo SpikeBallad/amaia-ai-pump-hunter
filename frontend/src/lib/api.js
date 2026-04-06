@@ -46,6 +46,13 @@ export async function fetchOverview({ exchange = 'auto', marketType = 'spot', li
   return data;
 }
 
+export async function fetchScan({ symbol, exchange = 'auto', marketType = 'spot', timeframe = '4H' } = {}) {
+  const { data } = await api.get('/scan', {
+    params: { symbol, exchange, market_type: marketType, timeframe },
+  });
+  return data;
+}
+
 export async function fetchCacheStats() {
   const { data } = await api.get('/cache/stats');
   return data;
