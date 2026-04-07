@@ -152,7 +152,43 @@ function computeStats(history) {
   const losses = history.filter((trade) => trade.pnlUsd <= 0).length;
   const winRate = closedTrades ? (wins / closedTrades) * 100 : 0;
   const totalPnl = history.reduce((sum, trade) => sum + trade.pnlUsd, 0);
-  return { closedTrades, wins, losses, winRate, totalPnl };
+  const maxDrawdown = history.reduce(
+    (state, trade) => {
+      const nextEquity = state.equity + (trade.pnlUsd ?? 0);
+      const nextPeak = Math.max(state.peak, nextEquity);
+      const drawdownPct = nextPeak > 0 ? ((nextPeak - nextEquity) / nextPeak) * 100 : 0;
+      return {
+        equity: nextEquity,
+        peak: nextPeak,
+        maxDrawdown: Math.max(state.maxDrawdown, drawdownPct),
+      };
+    },
+    { equity: 0, peak: 0, maxDrawdown: 0 }
+  ).maxDrawdown;
+  return { closedTrades, wins, losses, winRate, totalPnl, maxDrawdown };
+}
+
+function buildEquitySeries(history) {
+  const orderedHistory = [...history].reverse();
+  let equity = 0;
+  return orderedHistory.map((trade, index) => {
+    equity += trade.pnlUsd ?? 0;
+    return { x: index, y: equity };
+  });
+}
+
+function buildEquityPath(series) {
+  if (!series.length) return '';
+  const min = Math.min(...series.map((point) => point.y));
+  const max = Math.max(...series.map((point) => point.y));
+  const range = Math.max(max - min, 1);
+  return series
+    .map((point, index) => {
+      const x = series.length === 1 ? 50 : (point.x / Math.max(series.length - 1, 1)) * 100;
+      const y = 100 - (((point.y - min) / range) * 100);
+      return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
+    })
+    .join(' ');
 }
 
 function AccountSummaryCard({ eyebrow, title, bucket, account, stats }) {
@@ -477,6 +513,10 @@ export default function CatBotPage() {
 
   const spotStats = useMemo(() => computeStats(engineState.spot.history), [engineState.spot.history]);
   const futuresStats = useMemo(() => computeStats(engineState.futures.history), [engineState.futures.history]);
+  const spotEquitySeries = useMemo(() => buildEquitySeries(engineState.spot.history), [engineState.spot.history]);
+  const futuresEquitySeries = useMemo(() => buildEquitySeries(engineState.futures.history), [engineState.futures.history]);
+  const spotEquityPath = useMemo(() => buildEquityPath(spotEquitySeries), [spotEquitySeries]);
+  const futuresEquityPath = useMemo(() => buildEquityPath(futuresEquitySeries), [futuresEquitySeries]);
   const comparisonInsight = useMemo(() => {
     if (spotStats.closedTrades === 0 && futuresStats.closedTrades === 0) {
       return 'Todavía no hay suficientes trades cerrados para comparar el edge entre Spot y Futures.';
@@ -676,6 +716,62 @@ export default function CatBotPage() {
         <section className="grid gap-6 xl:grid-cols-2">
           <AccountSummaryCard eyebrow="Spot Demo" title="Paper Spot Account" bucket="spot" account={engineState.spot} stats={spotStats} />
           <AccountSummaryCard eyebrow="Futures Demo" title="Paper Futures Account" bucket="futures" account={engineState.futures} stats={futuresStats} />
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-2">
+          <div className="glass-panel rounded-[34px] p-6">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Equity Curve</p>
+                <h2 className="mt-3 text-3xl font-semibold text-white">Spot performance path</h2>
+              </div>
+              <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold text-cyan-200">
+                Max DD {formatPercent(spotStats.maxDrawdown)}
+              </span>
+            </div>
+            <div className="mt-6 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+              {spotEquityPath ? (
+                <svg viewBox="0 0 100 100" className="h-44 w-full">
+                  <defs>
+                    <linearGradient id="spotEquityGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#22d3ee" />
+                      <stop offset="100%" stopColor="#67e8f9" />
+                    </linearGradient>
+                  </defs>
+                  <path d={spotEquityPath} fill="none" stroke="url(#spotEquityGradient)" strokeWidth="2.5" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <div className="flex h-44 items-center justify-center text-sm text-slate-400">Aún no hay trades cerrados para trazar la curva.</div>
+              )}
+            </div>
+          </div>
+
+          <div className="glass-panel rounded-[34px] p-6">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Equity Curve</p>
+                <h2 className="mt-3 text-3xl font-semibold text-white">Futures performance path</h2>
+              </div>
+              <span className="rounded-full border border-fuchsia-500/20 bg-fuchsia-500/10 px-3 py-1 text-[11px] font-semibold text-fuchsia-200">
+                Max DD {formatPercent(futuresStats.maxDrawdown)}
+              </span>
+            </div>
+            <div className="mt-6 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+              {futuresEquityPath ? (
+                <svg viewBox="0 0 100 100" className="h-44 w-full">
+                  <defs>
+                    <linearGradient id="futuresEquityGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#d946ef" />
+                      <stop offset="100%" stopColor="#a78bfa" />
+                    </linearGradient>
+                  </defs>
+                  <path d={futuresEquityPath} fill="none" stroke="url(#futuresEquityGradient)" strokeWidth="2.5" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <div className="flex h-44 items-center justify-center text-sm text-slate-400">Aún no hay trades cerrados para trazar la curva.</div>
+              )}
+            </div>
+          </div>
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
