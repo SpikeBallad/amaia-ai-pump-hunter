@@ -51,6 +51,69 @@ function createInitialEngineState() {
   };
 }
 
+function normalizePosition(position) {
+  const baseEntryPrice = typeof position?.entryPrice === 'number' ? position.entryPrice : 0;
+  const dcaEntries =
+    Array.isArray(position?.dcaEntries) && position.dcaEntries.length
+      ? position.dcaEntries.map((entry, index) => ({
+          label: entry.label ?? `E${index + 1}`,
+          price: typeof entry.price === 'number' ? entry.price : baseEntryPrice,
+          allocation: typeof entry.allocation === 'number' ? entry.allocation : index === 0 ? 1 : 0,
+          filled: typeof entry.filled === 'boolean' ? entry.filled : index === 0,
+          filledAt: entry.filledAt ?? null,
+        }))
+      : [
+          {
+            label: 'E1',
+            price: baseEntryPrice,
+            allocation: 1,
+            filled: true,
+            filledAt: position?.openedAt ?? null,
+          },
+        ];
+
+  return {
+    ...position,
+    plannedAverageEntry: typeof position?.plannedAverageEntry === 'number' ? position.plannedAverageEntry : baseEntryPrice,
+    strategyLabel: position?.strategyLabel ?? 'Single entry + structural stop + 2.6R target',
+    targetRMultiple: typeof position?.targetRMultiple === 'number' ? position.targetRMultiple : 2.6,
+    dcaEntries,
+    deployedNotionalUsd:
+      typeof position?.deployedNotionalUsd === 'number'
+        ? position.deployedNotionalUsd
+        : typeof position?.notionalUsd === 'number'
+          ? position.notionalUsd
+          : 0,
+    exitReason: position?.exitReason ?? null,
+  };
+}
+
+function normalizeAccountState(account, fallbackCapital, extras = {}) {
+  return {
+    capital: typeof account?.capital === 'number' ? account.capital : fallbackCapital,
+    availableCapital: typeof account?.availableCapital === 'number' ? account.availableCapital : fallbackCapital,
+    autoTrade: typeof account?.autoTrade === 'boolean' ? account.autoTrade : true,
+    openPositions: Array.isArray(account?.openPositions) ? account.openPositions.map(normalizePosition) : [],
+    history: Array.isArray(account?.history) ? account.history.map(normalizePosition) : [],
+    ...extras,
+  };
+}
+
+function normalizeEngineState(state) {
+  if (!state || typeof state !== 'object') {
+    return createInitialEngineState();
+  }
+
+  return {
+    processedAlertIds: Array.isArray(state.processedAlertIds) ? state.processedAlertIds : [],
+    spot: normalizeAccountState(state.spot, SPOT_START_CAPITAL),
+    futures: normalizeAccountState(state.futures, FUTURES_START_CAPITAL, {
+      leverage: typeof state?.futures?.leverage === 'number' ? state.futures.leverage : FUTURES_LEVERAGE,
+      marginMode: state?.futures?.marginMode ?? 'Cross',
+    }),
+  };
+}
+
 function buildTradeTemplate(row) {
   if (!row?.price) return null;
 
@@ -207,7 +270,9 @@ export default function CatBotPage() {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (raw) {
-        setEngineState(JSON.parse(raw));
+        setEngineState(normalizeEngineState(JSON.parse(raw)));
+      } else {
+        setEngineState(createInitialEngineState());
       }
     } catch {
       setEngineState(createInitialEngineState());
@@ -327,7 +392,7 @@ export default function CatBotPage() {
             return;
           }
 
-          const nextEntries = position.dcaEntries.map((entry) => ({ ...entry }));
+          const nextEntries = (position.dcaEntries ?? []).map((entry) => ({ ...entry }));
           let nextQuantity = position.quantity;
           let nextEntryPrice = position.entryPrice;
           let nextDeployedNotionalUsd = position.deployedNotionalUsd;
