@@ -152,6 +152,12 @@ function computeStats(history) {
   const losses = history.filter((trade) => trade.pnlUsd <= 0).length;
   const winRate = closedTrades ? (wins / closedTrades) * 100 : 0;
   const totalPnl = history.reduce((sum, trade) => sum + trade.pnlUsd, 0);
+  const grossProfit = history.filter((trade) => trade.pnlUsd > 0).reduce((sum, trade) => sum + trade.pnlUsd, 0);
+  const grossLoss = Math.abs(history.filter((trade) => trade.pnlUsd < 0).reduce((sum, trade) => sum + trade.pnlUsd, 0));
+  const averageWin = wins ? grossProfit / wins : 0;
+  const averageLoss = losses ? grossLoss / losses : 0;
+  const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? grossProfit : 0;
+  const expectancy = closedTrades ? totalPnl / closedTrades : 0;
   const maxDrawdown = history.reduce(
     (state, trade) => {
       const nextEquity = state.equity + (trade.pnlUsd ?? 0);
@@ -165,7 +171,7 @@ function computeStats(history) {
     },
     { equity: 0, peak: 0, maxDrawdown: 0 }
   ).maxDrawdown;
-  return { closedTrades, wins, losses, winRate, totalPnl, maxDrawdown };
+  return { closedTrades, wins, losses, winRate, totalPnl, maxDrawdown, averageWin, averageLoss, profitFactor, expectancy };
 }
 
 function buildEquitySeries(history) {
@@ -222,6 +228,25 @@ function AccountSummaryCard({ eyebrow, title, bucket, account, stats }) {
         <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
           <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">PnL</p>
           <p className={`mt-2 text-xl font-semibold ${stats.totalPnl >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{formatPrice(stats.totalPnl)}</p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Profit Factor</p>
+          <p className="mt-2 text-lg font-semibold text-white">{stats.profitFactor ? stats.profitFactor.toFixed(2) : '--'}</p>
+        </div>
+        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Avg Win</p>
+          <p className="mt-2 text-lg font-semibold text-emerald-300">{formatPrice(stats.averageWin)}</p>
+        </div>
+        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Avg Loss</p>
+          <p className="mt-2 text-lg font-semibold text-rose-300">{formatPrice(stats.averageLoss)}</p>
+        </div>
+        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Expectancy</p>
+          <p className={`mt-2 text-lg font-semibold ${stats.expectancy >= 0 ? 'text-cyan-300' : 'text-rose-300'}`}>{formatPrice(stats.expectancy)}</p>
         </div>
       </div>
     </div>
