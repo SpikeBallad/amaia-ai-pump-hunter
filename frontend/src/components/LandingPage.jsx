@@ -2,6 +2,7 @@
 
 import { trackEvent } from '@/src/lib/analytics';
 import BrandMark from '@/src/components/BrandMark';
+import PricingCard from '@/src/components/PricingCard';
 
 function PaymentButton({ href, label, tone = 'primary', analyticsName, analyticsPayload }) {
   const className =
@@ -107,7 +108,7 @@ function ObjectionCard({ title, concern, response }) {
 function ProofCard({ quote, name, role }) {
   return (
     <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
-      <p className="text-sm leading-7 text-slate-300">“{quote}”</p>
+      <p className="text-sm leading-7 text-slate-300">{quote}</p>
       <div className="mt-5">
         <p className="text-sm font-semibold text-white">{name}</p>
         <p className="mt-1 text-xs uppercase tracking-[0.22em] text-slate-500">{role}</p>
@@ -127,8 +128,8 @@ function ComparisonRow({ label, amaia, generic }) {
 }
 
 export default function LandingPage() {
-  const stripeUrl = process.env.NEXT_PUBLIC_STRIPE_PAYMENT_URL ?? '/login';
-  const paypalUrl = process.env.NEXT_PUBLIC_PAYPAL_PAYMENT_URL ?? '/login';
+  const stripeUrl = process.env.NEXT_PUBLIC_STRIPE_EARLY_ACCESS_URL ?? process.env.NEXT_PUBLIC_STRIPE_PAYMENT_URL ?? '/login';
+  const paypalUrl = process.env.NEXT_PUBLIC_PAYPAL_EARLY_ACCESS_URL ?? process.env.NEXT_PUBLIC_PAYPAL_PAYMENT_URL ?? '/login';
   const marketingVideoUrl = process.env.NEXT_PUBLIC_MARKETING_VIDEO_URL ?? '';
   const onboardingVideoUrl = process.env.NEXT_PUBLIC_ONBOARDING_VIDEO_URL ?? '';
 
@@ -138,9 +139,9 @@ export default function LandingPage() {
         <section className="glass-panel overflow-hidden rounded-[40px] p-8 sm:p-10">
           <div className="mb-8 flex flex-wrap items-center justify-between gap-4 rounded-[24px] border border-amber-400/15 bg-[linear-gradient(90deg,rgba(245,158,11,0.12),rgba(245,158,11,0.04),transparent)] px-5 py-4">
             <div>
-              <p className="text-[11px] uppercase tracking-[0.3em] text-amber-200/80">Founding Members Pricing</p>
+              <p className="text-[11px] uppercase tracking-[0.3em] text-amber-200/80">Founding Operator Pricing</p>
               <p className="mt-2 text-sm font-semibold text-white sm:text-base">
-                Acceso inicial a €79/mes mientras Amaia está en fase de crecimiento premium.
+                Acceso inicial a €79/mes mientras la admisión privada sigue limitada para mantener onboarding y soporte de alto nivel.
               </p>
             </div>
             <a
@@ -167,13 +168,36 @@ export default function LandingPage() {
                   <div>
                     <p className="text-xs uppercase tracking-[0.42em] text-slate-500">Robotic Hunter Market Desk</p>
                     <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-tight text-white sm:text-6xl">
-                      El sistema que detecta acumulación ignorada antes de que el mercado la vea.
+                      Deja de reaccionar tarde. Encuentra estructura antes de que la multitud vea el movimiento.
                     </h1>
                     <p className="mt-5 max-w-3xl text-base leading-8 text-slate-400">
-                      AMAIA AI PUMP HUNTER PRO escanea Spot y Futures en Binance y MEXC para encontrar estructuras previas a
-                      explosión: compresión real, trampas de liquidez, drawdowns profundos y setups todavía sin atención
-                      masiva.
+                      AMAIA AI PUMP HUNTER PRO es una mesa privada de inteligencia para traders que quieren menos ruido, mejor
+                      contexto y una ruta más rápida desde descubrimiento hasta decisión. Escanea Spot y Futures en Binance y MEXC
+                      para encontrar acumulación ignorada, compresión real y actividad previa a expansión, antes de que el flujo
+                      retail se amontone.
                     </p>
+                    <div className="mt-6 flex flex-wrap gap-3">
+                      <PaymentButton
+                        href={stripeUrl}
+                        label="Start Private Access"
+                        analyticsName="hero_primary_cta_clicked"
+                        analyticsPayload={{ provider: 'stripe', placement: 'hero_primary', plan: 'pro_monthly_79' }}
+                      />
+                      <PaymentButton
+                        href="/onboarding"
+                        label="See How It Works"
+                        tone="secondary"
+                        analyticsName="hero_secondary_cta_clicked"
+                        analyticsPayload={{ destination: 'onboarding', placement: 'hero_secondary' }}
+                      />
+                      <PaymentButton
+                        href={process.env.NEXT_PUBLIC_SALES_DEMO_URL ?? '/onboarding'}
+                        label="Book a Precision Demo"
+                        tone="secondary"
+                        analyticsName="hero_demo_cta_clicked"
+                        analyticsPayload={{ destination: 'demo', placement: 'hero_demo' }}
+                      />
+                    </div>
                     <div className="mt-6 flex flex-wrap gap-3">
                       <span className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-slate-200">
                         Not for hype chasing
@@ -208,53 +232,7 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <div className="rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-6">
-              <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Pricing</p>
-              <h2 className="mt-3 text-3xl font-semibold text-white">Precio razonable para una mesa de inteligencia real</h2>
-              <div className="mt-6 rounded-[28px] border border-amber-400/18 bg-amber-400/[0.07] p-6">
-                <p className="text-[11px] uppercase tracking-[0.28em] text-amber-200/80">Plan Pro</p>
-                <div className="mt-3 flex items-end gap-3">
-                  <span className="text-5xl font-semibold text-white">€79</span>
-                  <span className="pb-2 text-sm text-slate-400">/ mes</span>
-                </div>
-                <p className="mt-4 text-sm leading-7 text-slate-300">
-                  Acceso al scanner multi-market, execution desk, copilot Amaia AI, alertas y módulos premium.
-                </p>
-                <div className="mt-5 grid gap-3">
-                  <PaymentButton
-                    href={stripeUrl}
-                    label="Pagar con Stripe"
-                    analyticsName="payment_cta_clicked"
-                    analyticsPayload={{ provider: 'stripe', placement: 'pricing_card', plan: 'pro_monthly_79' }}
-                  />
-                  <PaymentButton
-                    href={paypalUrl}
-                    label="Pagar con PayPal"
-                    tone="secondary"
-                    analyticsName="payment_cta_clicked"
-                    analyticsPayload={{ provider: 'paypal', placement: 'pricing_card', plan: 'pro_monthly_79' }}
-                  />
-                </div>
-                <p className="mt-4 text-xs leading-6 text-slate-500">
-                  Recomendado: configura Stripe o PayPal para redirigir después del pago a <span className="text-slate-300">/thank-you</span>.
-                </p>
-              </div>
-              <div className="mt-5 rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
-                <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Ideal For</p>
-                <ul className="mt-4 space-y-3 text-sm leading-7 text-slate-300">
-                  <li>Traders que quieren llegar antes que el flujo retail.</li>
-                  <li>Usuarios que prefieren setups estructurados y no monedas en tendencia tardía.</li>
-                  <li>Operadores que valoran scanner, guía y ejecución en una sola interfaz.</li>
-                </ul>
-                <a
-                  href="/onboarding"
-                  onClick={() => trackEvent('onboarding_preview_clicked', { placement: 'pricing_card' })}
-                  className="mt-5 inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]"
-                >
-                  Ver onboarding del cliente
-                </a>
-              </div>
-            </div>
+            <PricingCard stripeUrl={stripeUrl} paypalUrl={paypalUrl} demoUrl={process.env.NEXT_PUBLIC_SALES_DEMO_URL ?? '/onboarding'} />
           </div>
         </section>
 
@@ -383,6 +361,44 @@ export default function LandingPage() {
         </section>
 
         <section className="glass-panel rounded-[34px] p-6">
+          <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.32em] text-cyan-300">Why people buy</p>
+              <h2 className="mt-3 text-3xl font-semibold text-white">They are not buying hype. They are buying earlier context.</h2>
+              <p className="mt-4 max-w-3xl text-sm leading-8 text-slate-400">
+                The strongest conversion angle is simple: if your process is already serious, the bottleneck is usually discovery,
+                noise filtering, and execution discipline. AMAIA compresses that path into one operator-grade workflow.
+              </p>
+            </div>
+            <div className="grid gap-3">
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Before AMAIA</p>
+                <p className="mt-2 text-sm leading-7 text-slate-300">Too many charts, late focus, fragmented tools, noisy discovery.</p>
+              </div>
+              <div className="rounded-[24px] border border-cyan-500/15 bg-cyan-500/[0.05] p-5">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-slate-500">With AMAIA</p>
+                <p className="mt-2 text-sm leading-7 text-white">Narrower universe, stronger structure, clearer execution, faster operator decisions.</p>
+              </div>
+            </div>
+          </div>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <PaymentButton
+              href={stripeUrl}
+              label="Claim Founding Access"
+              analyticsName="mid_page_primary_cta_clicked"
+              analyticsPayload={{ provider: 'stripe', placement: 'mid_page_primary', plan: 'pro_monthly_79' }}
+            />
+            <PaymentButton
+              href={process.env.NEXT_PUBLIC_SALES_DEMO_URL ?? '/onboarding'}
+              label="Book Demo First"
+              tone="secondary"
+              analyticsName="mid_page_demo_cta_clicked"
+              analyticsPayload={{ destination: 'demo', placement: 'mid_page_demo' }}
+            />
+          </div>
+        </section>
+
+        <section className="glass-panel rounded-[34px] p-6">
           <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">User Guide</p>
           <h2 className="mt-3 text-3xl font-semibold text-white">Guía de uso para el usuario que paga</h2>
           <div className="mt-6 grid gap-4 md:grid-cols-4">
@@ -413,22 +429,22 @@ export default function LandingPage() {
               <ObjectionCard
                 title="Objeción 1"
                 concern="“Ya hay muchos scanners y bots.”"
-                response="Amaia no compite como un screener genérico. Combina descubrimiento temprano, contexto estructural, execution plan, sizing, alertas y guía AI en una sola mesa operativa."
+                response="Correcto. El mercado ya está lleno de scanners. Esa no es la categoría en la que Amaia quiere ganar. Amaia existe para reducir el tiempo entre detectar estructura relevante y convertirla en una decisión operativa con contexto, execution plan y prioridad real."
               />
               <ObjectionCard
                 title="Objeción 2"
                 concern="“No quiero entrar tarde en monedas hype.”"
-                response="Ese es exactamente el punto del sistema: excluir activos ya estirados y priorizar compresión, drawdown y atención baja antes de la ruptura."
+                response="Ese es precisamente el filtro. La lógica prioriza compresión, drawdown y atención baja, y excluye lo que ya viene demasiado extendido. La idea no es perseguir velas grandes; es detectar la estructura antes de que se vuelva obvia."
               />
               <ObjectionCard
                 title="Objeción 3"
                 concern="“¿Y si no sé usar una plataforma compleja?”"
-                response="La experiencia ya incluye onboarding, video guiado, Amaia AI copilot, plan operativo, alertas y una ruta clara para pasar de ver setups a ejecutar con estructura."
+                response="La interfaz está pensada para dos niveles: lectura rápida y mesa pro. Además ya incluye onboarding, guía visual, AI copilot y un flujo claro desde scanner hasta execution plan. No hace falta improvisar el proceso."
               />
               <ObjectionCard
                 title="Objeción 4"
                 concern="“€79 al mes, ¿vale la pena?”"
-                response="Si una sola mala entrada evitada o una sola ejecución disciplinada mejora tu operativa, el coste deja de ser gasto y pasa a ser infraestructura operativa."
+                response="La pregunta correcta no es si el software cuesta €79, sino cuánto cuesta seguir tomando decisiones con una cobertura más lenta, más ruidosa y menos estructurada. Si tu flujo actual ya es serio, esto se comporta más como infraestructura que como gasto accesorio."
               />
             </div>
           </div>
@@ -467,23 +483,23 @@ export default function LandingPage() {
 
         <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
           <div className="glass-panel rounded-[34px] p-6">
-            <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Social Proof</p>
-            <h2 className="mt-3 text-3xl font-semibold text-white">Prueba social para reforzar confianza</h2>
+            <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Operator Fit</p>
+            <h2 className="mt-3 text-3xl font-semibold text-white">Quién extrae más valor del sistema</h2>
             <div className="mt-6 grid gap-4">
               <ProofCard
-                quote="Lo que más me sorprendió fue que no me lanzó hype coins tarde. Me dio estructuras que todavía no estaban en boca de todos."
-                name="Daniel R."
-                role="Swing Trader · Spot & Futures"
+                quote="Best for traders who already understand execution and want earlier context, cleaner discovery, and fewer low-value charts."
+                name="Advanced Retail"
+                role="Spot and swing operators"
               />
               <ProofCard
-                quote="La diferencia no es solo detectar setups. Es tener entries, stop, take profits y contexto en la misma interfaz."
-                name="Lucía M."
-                role="Independent Operator"
+                quote="Best for operators who already use TradingView but want the upstream intelligence layer that tells them what deserves attention first."
+                name="Workflow Upgrade"
+                role="Chart-first discretionary traders"
               />
               <ProofCard
-                quote="Amaia se siente como una mesa operativa, no como una lista de símbolos. Eso cambia cómo tomas decisiones."
-                name="Marco T."
-                role="Crypto Desk User"
+                quote="Best for futures users who want one desk to unify discovery, alerts, structure review, execution planning, and paper validation."
+                name="Futures Desk"
+                role="Higher-frequency and operator-style workflows"
               />
             </div>
           </div>
@@ -525,8 +541,8 @@ export default function LandingPage() {
       <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
         <div className="pointer-events-auto flex w-full max-w-5xl items-center justify-between gap-4 rounded-[22px] border border-cyan-400/15 bg-[linear-gradient(180deg,rgba(7,12,24,0.92),rgba(4,8,18,0.9))] px-4 py-3 shadow-[0_24px_90px_rgba(2,8,24,0.45)] backdrop-blur-xl">
           <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-[0.24em] text-cyan-300/80">Hunter Offer</p>
-            <p className="mt-1 truncate text-sm font-semibold text-white sm:text-base">Accede hoy a AMAIA AI PUMP HUNTER PRO por €79/mes</p>
+            <p className="text-[10px] uppercase tracking-[0.24em] text-cyan-300/80">Private Access Window</p>
+            <p className="mt-1 truncate text-sm font-semibold text-white sm:text-base">Enter AMAIA now at founding pricing while private intake is still controlled</p>
           </div>
           <div className="flex shrink-0 items-center gap-3">
             <a
@@ -534,14 +550,14 @@ export default function LandingPage() {
               onClick={() => trackEvent('sticky_cta_clicked', { destination: 'stripe', plan: 'pro_monthly_79' })}
               className="inline-flex items-center justify-center rounded-2xl border border-amber-400/25 bg-amber-400/12 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/18"
             >
-              Stripe
+              Start access
             </a>
             <a
-              href="/thank-you"
-              onClick={() => trackEvent('sticky_cta_clicked', { destination: 'thank_you_preview' })}
+              href={process.env.NEXT_PUBLIC_SALES_DEMO_URL ?? '/onboarding'}
+              onClick={() => trackEvent('sticky_cta_clicked', { destination: 'demo' })}
               className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-white/[0.08]"
             >
-              Ver flujo
+              Book demo
             </a>
           </div>
         </div>

@@ -153,3 +153,67 @@ AMAIA_ALLOWED_ORIGINS=https://tu-frontend.vercel.app
 - fallback `REST only` listo para `all` y `futures`
 - narrativas movidas a config dedicada
 - señales visibles tipo `Breakout Build`, `Pressure Coil`, `No Edge`
+
+## AI Sales System
+
+AMAIA ahora incluye una capa comercial modular en `frontend/src/sales`:
+
+- `agents/`: motor conversacional y CTA orchestration
+- `scoring/`: lead score, intent y segmentacion
+- `prompts/`: modos `SDR`, `closer` y `retention`
+- `crm/`: adapters pluggables para `memory`, `Supabase`, `Airtable` y `HubSpot`
+- `services/`: objection handling, decision engine, follow-ups y resumen admin
+- `ui/`: widget de chat y dashboard interno de ventas
+
+### Rutas
+
+- widget publico: visible en `/`, `/login`, `/onboarding` y `/thank-you`
+- API de chat: `frontend/app/api/sales/chat/route.js`
+- tracking CTA: `frontend/app/api/sales/cta/route.js`
+- admin summary: `frontend/app/api/sales/admin/summary/route.js`
+- admin UI protegida: `/sales-admin`
+
+### Flujo
+
+1. El visitante abre el chat
+2. `AMAIA Sales AI` pregunta por mercado, activos, frecuencia, herramientas, fricciones y objetivo
+3. El motor produce:
+   - `lead_score`
+   - `intent_level`
+   - `segment`
+   - `recommended_next_action`
+4. Se muestra un solo CTA primario
+5. El lead, sus objeciones y la conversacion se guardan en el CRM adapter activo
+
+### Variables adicionales
+
+Usa `frontend/.env.example` y configura como minimo:
+
+```bash
+NEXT_PUBLIC_STRIPE_EARLY_ACCESS_URL=
+NEXT_PUBLIC_PAYPAL_EARLY_ACCESS_URL=
+NEXT_PUBLIC_SALES_TRIAL_URL=/login
+NEXT_PUBLIC_SALES_DEMO_URL=/onboarding
+NEXT_PUBLIC_SALES_WAITLIST_URL=/onboarding
+NEXT_PUBLIC_SALES_HUMAN_URL=mailto:sales@amaia.ai
+AMAIA_SALES_HUMAN_EMAIL=sales@amaia.ai
+AMAIA_SALES_CRM_PROVIDER=memory
+```
+
+Providers disponibles:
+
+- `memory`: demo local y fallback
+- `supabase`
+- `airtable`
+- `hubspot`
+
+El modulo de pricing tambien soporta:
+
+- countdown persistente por campaña
+- estado `You’re in` sincronizado con el backend del sales system
+- experimento A/B local del hook y CTA principal
+- payment links reales via `NEXT_PUBLIC_STRIPE_EARLY_ACCESS_URL` y `NEXT_PUBLIC_PAYPAL_EARLY_ACCESS_URL`
+
+### Modo recomendado de despliegue
+
+Para produccion, deja el widget y las APIs en Vercel y conecta el CRM real por variables de entorno. Si no configuras un provider, el sistema sigue funcionando con `memory` y datos de ejemplo.

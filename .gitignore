@@ -20,6 +20,8 @@ backend-dev.out.log
 backend-dev.err.log
 backend-dev-8001.out.log
 backend-dev-8001.err.log
+frontend/build*.log
+docs/marketing-shots/
 
 .DS_Store
 Thumbs.db

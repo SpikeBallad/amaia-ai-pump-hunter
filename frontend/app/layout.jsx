@@ -1,5 +1,6 @@
 import './globals.css';
 import AnalyticsProvider from '@/src/components/AnalyticsProvider';
+import SalesChatMount from '@/src/sales/ui/SalesChatMount';
 
 export const metadata = {
   title: 'AMAIA AI PUMP HUNTER PRO',
@@ -12,6 +13,7 @@ export default function RootLayout({ children }) {
       <body>
         {children}
         <AnalyticsProvider />
+        <SalesChatMount />
       </body>
     </html>
   );
