@@ -279,8 +279,9 @@ function buildEquityPath(series) {
     .join(' ');
 }
 
-function AccountSummaryCard({ eyebrow, title, bucket, account, stats }) {
+function AccountSummaryCard({ eyebrow, title, bucket, account, stats, unrealizedPnl = 0 }) {
   const accent = bucket === 'futures' ? 'text-fuchsia-200 border-fuchsia-500/20 bg-fuchsia-500/10' : 'text-cyan-200 border-cyan-500/20 bg-cyan-500/10';
+  const netPnl = stats.totalPnl + unrealizedPnl;
 
   return (
     <div className="rounded-[30px] border border-white/10 bg-white/[0.03] p-5">
@@ -308,8 +309,11 @@ function AccountSummaryCard({ eyebrow, title, bucket, account, stats }) {
           <p className="mt-2 text-xl font-semibold text-emerald-300">{formatPercent(stats.winRate)}</p>
         </div>
         <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-          <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">PnL</p>
-          <p className={`mt-2 text-xl font-semibold ${stats.totalPnl >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{formatPrice(stats.totalPnl)}</p>
+          <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">PnL (Net)</p>
+          <p className={`mt-2 text-xl font-semibold ${netPnl >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>{formatPrice(netPnl)}</p>
+          <p className="mt-1 text-[10px] text-slate-500">
+            Realized {formatPrice(stats.totalPnl)} · Open {formatPrice(unrealizedPnl)}
+          </p>
         </div>
       </div>
 
@@ -440,9 +444,11 @@ export default function CatBotPage() {
   }, [rows]);
 
   const openPositions = useMemo(
-    () => [...engineState.spot.openPositions, ...engineState.futures.openPositions].slice(0, 20),
+    () => [...engineState.spot.openPositions, ...engineState.futures.openPositions],
     [engineState.spot.openPositions, engineState.futures.openPositions]
   );
+
+  const visibleOpenPositions = useMemo(() => openPositions.slice(0, 10), [openPositions]);
 
   useEffect(() => {
     if (!openPositions.length) {
@@ -763,6 +769,22 @@ export default function CatBotPage() {
     }, 0);
   }, [openPositions, liveRowsByKey, livePriceOverrides]);
 
+  const spotUnrealizedPnl = useMemo(() => {
+    return engineState.spot.openPositions.reduce((sum, position) => {
+      const livePrice = resolveLivePrice(position);
+      if (typeof livePrice !== 'number') return sum;
+      return sum + (livePrice - position.entryPrice) * position.quantity;
+    }, 0);
+  }, [engineState.spot.openPositions, liveRowsByKey, livePriceOverrides]);
+
+  const futuresUnrealizedPnl = useMemo(() => {
+    return engineState.futures.openPositions.reduce((sum, position) => {
+      const livePrice = resolveLivePrice(position);
+      if (typeof livePrice !== 'number') return sum;
+      return sum + (livePrice - position.entryPrice) * position.quantity;
+    }, 0);
+  }, [engineState.futures.openPositions, liveRowsByKey, livePriceOverrides]);
+
   useEffect(() => {
     if (!hydratedRef.current) return;
     try {
@@ -988,8 +1010,22 @@ export default function CatBotPage() {
         </section>
 
         <section className="grid gap-6 xl:grid-cols-2">
-          <AccountSummaryCard eyebrow="Spot Demo" title="Paper Spot Account" bucket="spot" account={engineState.spot} stats={spotStats} />
-          <AccountSummaryCard eyebrow="Futures Demo" title="Paper Futures Account" bucket="futures" account={engineState.futures} stats={futuresStats} />
+          <AccountSummaryCard
+            eyebrow="Spot Demo"
+            title="Paper Spot Account"
+            bucket="spot"
+            account={engineState.spot}
+            stats={spotStats}
+            unrealizedPnl={spotUnrealizedPnl}
+          />
+          <AccountSummaryCard
+            eyebrow="Futures Demo"
+            title="Paper Futures Account"
+            bucket="futures"
+            account={engineState.futures}
+            stats={futuresStats}
+            unrealizedPnl={futuresUnrealizedPnl}
+          />
         </section>
 
         <section className="grid gap-6 xl:grid-cols-2">
@@ -1092,7 +1128,7 @@ export default function CatBotPage() {
               </div>
             </div>
             <div className="mt-6 grid gap-3">
-              {openPositions.slice(0, 10).map((position) => (
+              {visibleOpenPositions.map((position) => (
                 <div key={position.id} className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
                   {(() => {
                     const livePrice = resolveLivePrice(position);
@@ -1117,7 +1153,7 @@ export default function CatBotPage() {
                   })()}
                 </div>
               ))}
-              {openPositions.length === 0 ? (
+              {visibleOpenPositions.length === 0 ? (
                 <div className="rounded-[22px] border border-dashed border-white/10 bg-white/[0.02] p-5 text-sm text-slate-400">
                   El bot aun no ha abierto posiciones. {noDataReason}
                 </div>
