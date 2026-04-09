@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import BrandMark from '@/src/components/BrandMark';
 import { useMarket } from '@/src/context/MarketContext';
+import { fetchScan } from '@/src/lib/api';
 
 const STORAGE_KEY = 'amaia-cat-bot-paper-engine';
 const INSIGHTS_KEY = 'amaia-cat-bot-insights';
@@ -83,6 +84,12 @@ function normalizePosition(position) {
         ? position.deployedNotionalUsd
         : typeof position?.notionalUsd === 'number'
           ? position.notionalUsd
+          : 0,
+    quantity:
+      typeof position?.quantity === 'number'
+        ? position.quantity
+        : typeof position?.entryPrice === 'number' && typeof position?.notionalUsd === 'number'
+          ? position.notionalUsd / Math.max(position.entryPrice, 0.0000001)
           : 0,
     exitReason: position?.exitReason ?? null,
   };
@@ -401,6 +408,7 @@ export default function CatBotPage() {
   const [exchangeFilter, setExchangeFilter] = useState('all');
   const [marketFilter, setMarketFilter] = useState('all');
   const [botNotice, setBotNotice] = useState('');
+  const [livePriceOverrides, setLivePriceOverrides] = useState({});
   const hydratedRef = useRef(false);
 
   useEffect(() => {
@@ -430,6 +438,59 @@ export default function CatBotPage() {
   const liveRowsByKey = useMemo(() => {
     return new Map(rows.map((row) => [`${row.exchange}-${row.symbol}-${getMarketBucket(row)}`, row]));
   }, [rows]);
+
+  const openPositions = useMemo(
+    () => [...engineState.spot.openPositions, ...engineState.futures.openPositions].slice(0, 20),
+    [engineState.spot.openPositions, engineState.futures.openPositions]
+  );
+
+  useEffect(() => {
+    if (!openPositions.length) {
+      setLivePriceOverrides({});
+      return undefined;
+    }
+
+    let isCancelled = false;
+
+    async function refreshLiveOverrides() {
+      const priceEntries = await Promise.all(
+        openPositions.map(async (position) => {
+          const key = `${position.exchange}-${position.symbol}-${position.marketBucket}`;
+          try {
+            const scan = await fetchScan({
+              symbol: position.symbol,
+              exchange: position.exchange,
+              marketType: position.marketBucket,
+              timeframe: '4H',
+            });
+            const livePrice = scan?.price ?? scan?.indicators?.last_close ?? null;
+            return [key, typeof livePrice === 'number' ? livePrice : null];
+          } catch {
+            return [key, null];
+          }
+        })
+      );
+
+      if (isCancelled) return;
+      const next = {};
+      priceEntries.forEach(([key, value]) => {
+        if (typeof value === 'number') {
+          next[key] = value;
+        }
+      });
+      setLivePriceOverrides(next);
+    }
+
+    void refreshLiveOverrides();
+    const intervalId = window.setInterval(() => {
+      void refreshLiveOverrides();
+    }, 9000);
+
+    return () => {
+      isCancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [openPositions]);
 
   const eligibleRows = useMemo(() => {
     return rows
@@ -684,6 +745,23 @@ export default function CatBotPage() {
 
     return 'Spot y Futures están empatados por ahora; conviene acumular más muestras.';
   }, [futuresStats.closedTrades, futuresStats.winRate, spotStats.closedTrades, spotStats.winRate]);
+
+  function resolveLivePrice(position) {
+    const key = `${position.exchange}-${position.symbol}-${position.marketBucket}`;
+    const feedPrice = liveRowsByKey.get(key)?.price;
+    if (typeof feedPrice === 'number') return feedPrice;
+    const overridePrice = livePriceOverrides[key];
+    if (typeof overridePrice === 'number') return overridePrice;
+    return null;
+  }
+
+  const unrealizedPnl = useMemo(() => {
+    return openPositions.reduce((sum, position) => {
+      const livePrice = resolveLivePrice(position);
+      if (typeof livePrice !== 'number') return sum;
+      return sum + (livePrice - position.entryPrice) * position.quantity;
+    }, 0);
+  }, [openPositions, liveRowsByKey, livePriceOverrides]);
 
   useEffect(() => {
     if (!hydratedRef.current) return;
@@ -1001,14 +1079,23 @@ export default function CatBotPage() {
           </div>
 
           <div className="glass-panel rounded-[34px] p-6">
-            <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Open Positions</p>
-            <h2 className="mt-3 text-3xl font-semibold text-white">Live paper exposure</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500">Open Positions</p>
+                <h2 className="mt-3 text-3xl font-semibold text-white">Live paper exposure</h2>
+              </div>
+              <div className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs uppercase tracking-[0.2em] text-slate-300">
+                Unrealized PnL{' '}
+                <span className={`ml-2 font-semibold ${unrealizedPnl >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                  {formatPrice(unrealizedPnl)}
+                </span>
+              </div>
+            </div>
             <div className="mt-6 grid gap-3">
-              {[...engineState.spot.openPositions, ...engineState.futures.openPositions].slice(0, 10).map((position) => (
+              {openPositions.slice(0, 10).map((position) => (
                 <div key={position.id} className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
                   {(() => {
-                    const liveRow = liveRowsByKey.get(`${position.exchange}-${position.symbol}-${position.marketBucket}`);
-                    const livePrice = liveRow?.price ?? null;
+                    const livePrice = resolveLivePrice(position);
                     const livePnl = typeof livePrice === 'number' ? (livePrice - position.entryPrice) * position.quantity : null;
 
                     return (
@@ -1030,7 +1117,7 @@ export default function CatBotPage() {
                   })()}
                 </div>
               ))}
-              {engineState.spot.openPositions.length + engineState.futures.openPositions.length === 0 ? (
+              {openPositions.length === 0 ? (
                 <div className="rounded-[22px] border border-dashed border-white/10 bg-white/[0.02] p-5 text-sm text-slate-400">
                   El bot aun no ha abierto posiciones. {noDataReason}
                 </div>
