@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import BrandMark from '@/src/components/BrandMark';
 import { useMarket } from '@/src/context/MarketContext';
@@ -143,6 +143,81 @@ function buildTradeTemplate(row) {
     riskPct: ((averageEntry - stopPrice) / averageEntry) * 100,
     entries,
     strategyLabel: '3-step DCA + structural stop + 2.6R target',
+  };
+}
+
+function openPositionInState(current, row, triggerId, options = {}) {
+  if (!row || !triggerId) return current;
+  if (current.processedAlertIds.includes(triggerId)) return current;
+
+  const template = buildTradeTemplate(row);
+  if (!template) return current;
+
+  const force = options.force ?? false;
+  const next = {
+    ...current,
+    processedAlertIds: [triggerId, ...current.processedAlertIds].slice(0, 160),
+  };
+
+  const bucket = getMarketBucket(row);
+  const accountKey = bucket === 'futures' ? 'futures' : 'spot';
+  const account = next[accountKey];
+
+  if (!force && !account.autoTrade) return next;
+  if (
+    account.openPositions.some(
+      (position) =>
+        position.symbol === row.symbol &&
+        position.exchange === row.exchange &&
+        position.marketBucket === bucket
+    )
+  ) {
+    return next;
+  }
+
+  const marginUsd =
+    account.availableCapital *
+    (accountKey === 'futures' ? FUTURES_MARGIN_FRACTION : SPOT_RISK_FRACTION);
+  if (marginUsd <= 0) return next;
+
+  const notionalUsd = accountKey === 'futures' ? marginUsd * account.leverage : marginUsd;
+  const initialEntry = template.entries[0];
+  const initialNotionalUsd = notionalUsd * initialEntry.allocation;
+  const quantity = initialNotionalUsd / initialEntry.price;
+
+  const position = {
+    id: `${accountKey}-${row.exchange}-${row.symbol}-${Date.now()}`,
+    symbol: row.symbol,
+    exchange: row.exchange,
+    marketBucket: bucket,
+    openedAt: new Date().toISOString(),
+    entryPrice: initialEntry.price,
+    plannedAverageEntry: template.entryPrice,
+    stopPrice: template.stopPrice,
+    targetPrice: template.targetPrice,
+    quantity,
+    marginUsd,
+    notionalUsd,
+    deployedNotionalUsd: initialNotionalUsd,
+    leverage: accountKey === 'futures' ? account.leverage : 1,
+    riskPct: template.riskPct,
+    score: row.score,
+    strategyLabel: template.strategyLabel,
+    dcaEntries: template.entries.map((entry, index) => ({
+      ...entry,
+      filled: index === 0,
+      filledAt: index === 0 ? new Date().toISOString() : null,
+    })),
+    targetRMultiple: 2.6,
+  };
+
+  return {
+    ...next,
+    [accountKey]: {
+      ...account,
+      availableCapital: Math.max(account.availableCapital - marginUsd, 0),
+      openPositions: [position, ...account.openPositions],
+    },
   };
 }
 
@@ -325,6 +400,7 @@ export default function CatBotPage() {
   const [minScoreFilter, setMinScoreFilter] = useState(7);
   const [exchangeFilter, setExchangeFilter] = useState('all');
   const [marketFilter, setMarketFilter] = useState('all');
+  const [botNotice, setBotNotice] = useState('');
   const hydratedRef = useRef(false);
 
   useEffect(() => {
@@ -355,6 +431,92 @@ export default function CatBotPage() {
     return new Map(rows.map((row) => [`${row.exchange}-${row.symbol}-${getMarketBucket(row)}`, row]));
   }, [rows]);
 
+  const eligibleRows = useMemo(() => {
+    return rows
+      .filter((row) => {
+        const exchangeMatches = exchangeFilter === 'all' || row.exchange === exchangeFilter;
+        const marketMatches = marketFilter === 'all' || getMarketBucket(row) === marketFilter;
+        const scoreMatches = row.score >= minScoreFilter;
+        const highConviction = row.estado === 'HIGH';
+        const hasPrice = typeof row.price === 'number' && row.price > 0;
+        return exchangeMatches && marketMatches && scoreMatches && highConviction && hasPrice;
+      })
+      .sort((a, b) => b.score - a.score);
+  }, [rows, exchangeFilter, marketFilter, minScoreFilter]);
+
+  const botHealth = useMemo(() => {
+    const totalOpen = engineState.spot.openPositions.length + engineState.futures.openPositions.length;
+    const totalClosed = engineState.spot.history.length + engineState.futures.history.length;
+    return {
+      totalOpen,
+      totalClosed,
+      feedRows: rows.length,
+      eligibleRows: eligibleRows.length,
+      recentAlerts: alertLog.length,
+      processedIds: engineState.processedAlertIds.length,
+    };
+  }, [
+    engineState.spot.openPositions.length,
+    engineState.futures.openPositions.length,
+    engineState.spot.history.length,
+    engineState.futures.history.length,
+    rows.length,
+    eligibleRows.length,
+    alertLog.length,
+    engineState.processedAlertIds.length,
+  ]);
+
+  const noDataReason = useMemo(() => {
+    if (!rows.length) {
+      return 'Cat Bot no recibe filas de mercado todavia. Revisa si el scanner principal esta cargando datos.';
+    }
+    if (!eligibleRows.length) {
+      return 'Hay datos de mercado, pero no hay setups HIGH que cumplan tus filtros actuales.';
+    }
+    if (!alertLog.length) {
+      return 'No han entrado alertas HIGH nuevas en esta sesion. Puedes lanzar un trade demo manual para validar el motor.';
+    }
+    return '';
+  }, [rows.length, eligibleRows.length, alertLog.length]);
+
+  const runManualTestTrade = useCallback(() => {
+    const candidate = eligibleRows[0];
+    if (!candidate) {
+      setBotNotice('No hay setups elegibles para abrir un trade demo manual.');
+      return;
+    }
+
+    const bucket = getMarketBucket(candidate);
+    const accountKey = bucket === 'futures' ? 'futures' : 'spot';
+    const account = engineState[accountKey];
+    const duplicate = account.openPositions.some(
+      (position) =>
+        position.symbol === candidate.symbol &&
+        position.exchange === candidate.exchange &&
+        position.marketBucket === bucket
+    );
+    if (duplicate) {
+      setBotNotice(`Ya existe una posicion abierta para ${candidate.symbol} en ${candidate.exchange.toUpperCase()}.`);
+      return;
+    }
+    if (account.availableCapital <= 0) {
+      setBotNotice(`Sin capital disponible en ${accountKey.toUpperCase()} para abrir un trade demo.`);
+      return;
+    }
+
+    const triggerId = `manual-${candidate.id}-${Date.now()}`;
+    setEngineState((current) => openPositionInState(current, candidate, triggerId, { force: true }));
+    setBotNotice(
+      `Trade demo manual abierto en ${candidate.symbol} (${candidate.exchange.toUpperCase()} ${bucket.toUpperCase()}).`
+    );
+  }, [eligibleRows, engineState]);
+
+  useEffect(() => {
+    if (!botNotice) return undefined;
+    const timeout = window.setTimeout(() => setBotNotice(''), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [botNotice]);
+
   useEffect(() => {
     if (!hydratedRef.current || !alertLog.length) return;
 
@@ -372,68 +534,33 @@ export default function CatBotPage() {
     );
 
     if (!matchingRow) return;
-    const template = buildTradeTemplate(matchingRow);
-    if (!template) return;
-
-    setEngineState((current) => {
-      const next = {
-        ...current,
-        processedAlertIds: [latestAlert.id, ...current.processedAlertIds].slice(0, 120),
-      };
-
-      const bucket = getMarketBucket(matchingRow);
-      const accountKey = bucket === 'futures' ? 'futures' : 'spot';
-      const account = next[accountKey];
-
-      if (!account.autoTrade) return next;
-      if (account.openPositions.some((position) => position.symbol === matchingRow.symbol && position.exchange === matchingRow.exchange)) {
-        return next;
-      }
-
-      const marginUsd = account.availableCapital * (accountKey === 'futures' ? FUTURES_MARGIN_FRACTION : SPOT_RISK_FRACTION);
-      if (marginUsd <= 0) return next;
-
-      const notionalUsd = accountKey === 'futures' ? marginUsd * account.leverage : marginUsd;
-      const initialEntry = template.entries[0];
-      const initialNotionalUsd = notionalUsd * initialEntry.allocation;
-      const quantity = initialNotionalUsd / initialEntry.price;
-
-      const position = {
-        id: `${accountKey}-${matchingRow.exchange}-${matchingRow.symbol}-${Date.now()}`,
-        symbol: matchingRow.symbol,
-        exchange: matchingRow.exchange,
-        marketBucket: bucket,
-        openedAt: new Date().toISOString(),
-        entryPrice: initialEntry.price,
-        plannedAverageEntry: template.entryPrice,
-        stopPrice: template.stopPrice,
-        targetPrice: template.targetPrice,
-        quantity,
-        marginUsd,
-        notionalUsd,
-        deployedNotionalUsd: initialNotionalUsd,
-        leverage: accountKey === 'futures' ? account.leverage : 1,
-        riskPct: template.riskPct,
-        score: matchingRow.score,
-        strategyLabel: template.strategyLabel,
-        dcaEntries: template.entries.map((entry, index) => ({
-          ...entry,
-          filled: index === 0,
-          filledAt: index === 0 ? new Date().toISOString() : null,
-        })),
-        targetRMultiple: 2.6,
-      };
-
-      return {
-        ...next,
-        [accountKey]: {
-          ...account,
-          availableCapital: Math.max(account.availableCapital - marginUsd, 0),
-          openPositions: [position, ...account.openPositions],
-        },
-      };
-    });
+    setEngineState((current) => openPositionInState(current, matchingRow, latestAlert.id));
   }, [alertLog, engineState.processedAlertIds, exchangeFilter, marketFilter, minScoreFilter, rows]);
+
+  useEffect(() => {
+    if (!hydratedRef.current || !eligibleRows.length || alertLog.length) return;
+
+    const totalOpen = engineState.spot.openPositions.length + engineState.futures.openPositions.length;
+    const totalClosed = engineState.spot.history.length + engineState.futures.history.length;
+    if (totalOpen > 0 || totalClosed > 0) return;
+
+    const seedRow = eligibleRows[0];
+    const seedId = `bootstrap-${seedRow.id}`;
+    if (engineState.processedAlertIds.includes(seedId)) return;
+
+    setEngineState((current) => openPositionInState(current, seedRow, seedId));
+    setBotNotice(
+      `Se abrio una posicion demo inicial con ${seedRow.symbol} para validar datos y flujo del Cat Bot.`
+    );
+  }, [
+    eligibleRows,
+    alertLog.length,
+    engineState.spot.openPositions.length,
+    engineState.futures.openPositions.length,
+    engineState.spot.history.length,
+    engineState.futures.history.length,
+    engineState.processedAlertIds,
+  ]);
 
   useEffect(() => {
     if (!hydratedRef.current || !rows.length) return;
@@ -658,6 +785,42 @@ export default function CatBotPage() {
                   <p className="mt-3 text-2xl font-semibold text-fuchsia-300">{engineState.futures.openPositions.length}</p>
                 </div>
               </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5">
+                  <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Engine Health</p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                      <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Feed Rows</p>
+                      <p className="mt-2 text-lg font-semibold text-white">{botHealth.feedRows}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                      <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Eligible HIGH</p>
+                      <p className="mt-2 text-lg font-semibold text-emerald-300">{botHealth.eligibleRows}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                      <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Alerts Seen</p>
+                      <p className="mt-2 text-lg font-semibold text-cyan-300">{botHealth.recentAlerts}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                      <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Closed Trades</p>
+                      <p className="mt-2 text-lg font-semibold text-white">{botHealth.totalClosed}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-[26px] border border-amber-400/20 bg-amber-400/[0.08] p-5">
+                  <p className="text-[11px] uppercase tracking-[0.28em] text-amber-100/80">Operational Note</p>
+                  <p className="mt-3 text-sm leading-7 text-slate-100">
+                    {noDataReason || 'Cat Bot operativo. Hay datos elegibles y el motor de ejecucion demo esta activo.'}
+                  </p>
+                  {botNotice ? (
+                    <p className="mt-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">
+                      {botNotice}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
             </div>
 
             <div className="rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-6">
@@ -728,10 +891,18 @@ export default function CatBotPage() {
                 >
                   Export bot history
                 </button>
+                <button
+                  type="button"
+                  onClick={runManualTestTrade}
+                  className="rounded-2xl border border-amber-400/25 bg-amber-400/12 px-4 py-3 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/18"
+                >
+                  Launch one demo trade
+                </button>
               </div>
               <div className="mt-6 rounded-[24px] border border-white/10 bg-white/[0.03] p-5 text-sm leading-7 text-slate-300">
                 <p>Spot capital: {formatPrice(engineState.spot.capital)}</p>
                 <p>Futures capital: {formatPrice(engineState.futures.capital)} · Cross Margin x{engineState.futures.leverage}</p>
+                <p>Eligible setups now: {eligibleRows.length}</p>
                 <p>Last sync: {lastUpdated ? new Date(lastUpdated).toLocaleString('es-ES') : '--'}</p>
               </div>
             </div>
@@ -861,7 +1032,7 @@ export default function CatBotPage() {
               ))}
               {engineState.spot.openPositions.length + engineState.futures.openPositions.length === 0 ? (
                 <div className="rounded-[22px] border border-dashed border-white/10 bg-white/[0.02] p-5 text-sm text-slate-400">
-                  El bot aún no ha abierto posiciones. Espera una alerta HIGH nueva con auto-buy activado.
+                  El bot aun no ha abierto posiciones. {noDataReason}
                 </div>
               ) : null}
             </div>
