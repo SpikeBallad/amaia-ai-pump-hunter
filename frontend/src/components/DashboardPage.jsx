@@ -31,7 +31,7 @@ const moduleOptions = [
   { value: 'all', label: 'All Setups' },
   { value: 'spot', label: 'Spot Opportunities' },
   { value: 'futures', label: 'Futures Setups' },
-  { value: 'watchlist', label: 'Pre-Pump Watchlist' },
+  { value: 'watchlist', label: 'Pre-Move Watchlist' },
 ];
 
 const narrativeOptions = [
@@ -44,6 +44,11 @@ const narrativeOptions = [
 const marketPillStyles = {
   spot: 'border-cyan-500/20 bg-cyan-500/10 text-cyan-300',
   futures: 'border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-300',
+};
+
+const directionStyles = {
+  pump: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-200',
+  dump: 'border-rose-500/25 bg-rose-500/12 text-rose-200',
 };
 
 const chartRangeOptions = ['1D', '1W', '1M'];
@@ -77,6 +82,7 @@ function mapScanResultToRow(scan) {
     price: scan.price ?? scan.indicators?.last_close ?? null,
     score: scan.score,
     estado: scan.estado,
+    setupDirection: scan.setup_direction ?? 'pump',
     statusLabel: scan.status_label,
     volume: scan.volume ?? scan.indicators?.avg_volume_20 ?? null,
     volatility: scan.indicators?.atr_pct ?? null,
@@ -141,6 +147,14 @@ function getSocketClass(status) {
   if (status === 'reconnecting') return 'border-amber-500/20 bg-amber-500/10 text-amber-300';
   if (status === 'error') return 'border-rose-500/20 bg-rose-500/10 text-rose-300';
   return 'border-cyan-500/20 bg-cyan-500/10 text-cyan-300';
+}
+
+function getSetupDirection(row) {
+  return row?.setupDirection ?? row?.setup_direction ?? 'pump';
+}
+
+function getDirectionClass(direction) {
+  return directionStyles[direction] ?? directionStyles.pump;
 }
 
 function getHitRateClass(rate) {
@@ -338,44 +352,59 @@ function sliceCandlesForRange(candles, range) {
 function buildSuggestedEntries(row, range) {
   if (!row?.price) return [];
   const lastPrice = row.price;
+  const setupDirection = getSetupDirection(row);
   const rangePct = typeof row.rangePct === 'number' ? row.rangePct : typeof row.range_pct === 'number' ? row.range_pct : 0;
   const atrRatio = typeof row.atrRatio === 'number' ? row.atrRatio : typeof row.atr_ratio === 'number' ? row.atr_ratio : 0.01;
   const priceFloor = Math.max(lastPrice * 0.05, 0.00000001);
 
   const depthMultiplier = range === '1D' ? 0.45 : range === '1W' ? 0.75 : 1.1;
   const basePullback = Math.max(atrRatio * 100 * depthMultiplier, Math.min(rangePct * 0.2, 6));
-  const ladder = [
-    Math.max(priceFloor, lastPrice * (1 - (basePullback / 100))),
-    Math.max(priceFloor, lastPrice * (1 - ((basePullback * 1.75) / 100))),
-    Math.max(priceFloor, lastPrice * (1 - ((basePullback * 2.45) / 100))),
-  ];
+  const ladder =
+    setupDirection === 'dump'
+      ? [
+          lastPrice * (1 + (basePullback / 100)),
+          lastPrice * (1 + ((basePullback * 1.75) / 100)),
+          lastPrice * (1 + ((basePullback * 2.45) / 100)),
+        ]
+      : [
+          Math.max(priceFloor, lastPrice * (1 - (basePullback / 100))),
+          Math.max(priceFloor, lastPrice * (1 - ((basePullback * 1.75) / 100))),
+          Math.max(priceFloor, lastPrice * (1 - ((basePullback * 2.45) / 100))),
+        ];
 
   return ladder.map((price, index) => ({
     label: `Entry ${index + 1}`,
     price,
-    offsetPct: ((lastPrice - price) / lastPrice) * 100,
+    offsetPct: ((Math.abs(lastPrice - price)) / lastPrice) * 100,
   }));
 }
 
 function buildTradePlan(row, range, entries) {
   if (!row?.price || !entries?.length) return null;
 
+  const setupDirection = getSetupDirection(row);
+  const isShort = setupDirection === 'dump';
   const atrRatio = typeof row.atrRatio === 'number' ? row.atrRatio : typeof row.atr_ratio === 'number' ? row.atr_ratio : 0.01;
   const rangePct = typeof row.rangePct === 'number' ? row.rangePct : typeof row.range_pct === 'number' ? row.range_pct : 12;
+  const accumulationHigh = row?.candles?.length ? Math.max(...row.candles.map((candle) => candle.high)) : row.price * 1.1;
   const accumulationLow = row?.candles?.length ? Math.min(...row.candles.map((candle) => candle.low)) : row.price * 0.9;
   const avgEntry = entries.reduce((total, entry) => total + entry.price, 0) / entries.length;
   const stopBufferPct = Math.max(atrRatio * 100 * 1.1, Math.min(rangePct * 0.35, range === '1M' ? 11 : range === '1W' ? 8 : 5));
-  const structuralStop = accumulationLow * (1 - Math.max(atrRatio * 0.8, 0.008));
-  const percentStop = avgEntry * (1 - stopBufferPct / 100);
-  const stopPrice = Math.min(percentStop, structuralStop);
-  const riskPerUnit = Math.max(avgEntry - stopPrice, avgEntry * 0.005);
+  const structuralStop = isShort
+    ? accumulationHigh * (1 + Math.max(atrRatio * 0.8, 0.008))
+    : accumulationLow * (1 - Math.max(atrRatio * 0.8, 0.008));
+  const percentStop = isShort
+    ? avgEntry * (1 + stopBufferPct / 100)
+    : avgEntry * (1 - stopBufferPct / 100);
+  const stopPrice = isShort ? Math.max(percentStop, structuralStop) : Math.min(percentStop, structuralStop);
+  const riskPerUnit = Math.max(Math.abs(avgEntry - stopPrice), avgEntry * 0.005);
   const rewardMultiplier = range === '1D' ? [1.6, 2.4, 3.2] : range === '1W' ? [2.2, 3.4, 4.8] : [3.2, 4.8, 6.5];
   const takeProfits = rewardMultiplier.map((multiple, index) => ({
     label: `TP${index + 1}`,
-    price: avgEntry + riskPerUnit * multiple,
+    price: isShort ? avgEntry - riskPerUnit * multiple : avgEntry + riskPerUnit * multiple,
     rewardMultiple: multiple,
   }));
-  const maxRiskPct = ((avgEntry - stopPrice) / avgEntry) * 100;
+  const maxRiskPct = (Math.abs(avgEntry - stopPrice) / avgEntry) * 100;
   const allocationPct = range === '1D' ? 18 : range === '1W' ? 26 : 34;
   const decision =
     row.estado === 'HIGH'
@@ -387,12 +416,15 @@ function buildTradePlan(row, range, entries) {
         : 'Skip';
   const decisionReason =
     decision === 'Entry'
-      ? 'Compresion valida y estructura lista para construir posicion en escalones.'
+      ? isShort
+        ? 'Distribucion valida y estructura lista para construir posicion short en escalones.'
+        : 'Compresion valida y estructura lista para construir posicion long en escalones.'
       : decision === 'Monitor'
         ? 'La estructura es interesante, pero conviene esperar mejor timing o confirmacion.'
         : 'La ventaja estadistica no es suficiente para comprometer capital ahora.';
 
   return {
+    side: isShort ? 'short' : 'long',
     avgEntry,
     stopPrice,
     takeProfits,
@@ -400,7 +432,9 @@ function buildTradePlan(row, range, entries) {
     allocationPct,
     decision,
     decisionReason,
-    riskRewardAtTp3: takeProfits[2] ? ((takeProfits[2].price - avgEntry) / Math.max(avgEntry - stopPrice, 0.000001)).toFixed(2) : '--',
+    riskRewardAtTp3: takeProfits[2]
+      ? (Math.abs(takeProfits[2].price - avgEntry) / Math.max(Math.abs(avgEntry - stopPrice), 0.000001)).toFixed(2)
+      : '--',
   };
 }
 
@@ -408,7 +442,7 @@ function buildPositionSizing(tradePlan, capital, riskPercent) {
   if (!tradePlan || typeof capital !== 'number' || typeof riskPercent !== 'number') return null;
   if (capital <= 0 || riskPercent <= 0) return null;
   const riskBudgetUsd = capital * (riskPercent / 100);
-  const riskPerUnit = Math.max(tradePlan.avgEntry - tradePlan.stopPrice, 0.000001);
+  const riskPerUnit = Math.max(Math.abs(tradePlan.avgEntry - tradePlan.stopPrice), 0.000001);
   const quantity = riskBudgetUsd / riskPerUnit;
   const positionSizeUsd = quantity * tradePlan.avgEntry;
   return {
@@ -422,20 +456,33 @@ function buildPositionSizing(tradePlan, capital, riskPercent) {
 
 function isMacroBottomBuy(row) {
   if (!row) return false;
+  if (getSetupDirection(row) !== 'pump') return false;
   const dumpPct = typeof row.dumpPct === 'number' ? row.dumpPct : typeof row.dump_pct === 'number' ? row.dump_pct : 0;
   const rangePct = typeof row.rangePct === 'number' ? row.rangePct : typeof row.range_pct === 'number' ? row.range_pct : 100;
   const atrRatio = typeof row.atrRatio === 'number' ? row.atrRatio : typeof row.atr_ratio === 'number' ? row.atr_ratio : 1;
   return row.estado === 'HIGH' && dumpPct >= 82 && rangePct <= 10 && atrRatio <= 0.018;
 }
 
+function isMacroTopSell(row) {
+  if (!row) return false;
+  if (getSetupDirection(row) !== 'dump') return false;
+  const rangePct = typeof row.rangePct === 'number' ? row.rangePct : typeof row.range_pct === 'number' ? row.range_pct : 100;
+  const atrRatio = typeof row.atrRatio === 'number' ? row.atrRatio : typeof row.atr_ratio === 'number' ? row.atr_ratio : 1;
+  const change24h = typeof row.change24h === 'number' ? row.change24h : typeof row.change_24h === 'number' ? row.change_24h : 0;
+  return row.estado === 'HIGH' && change24h >= 8 && rangePct <= 12 && atrRatio >= 0.014;
+}
+
 function buildTradePlanText(row, tradePlan, positionSizing, suggestedEntries, chartRange) {
   if (!row || !tradePlan) return '';
+  const setupDirection = getSetupDirection(row);
+  const sideLabel = setupDirection === 'dump' ? 'SELL / SHORT' : 'BUY / LONG';
 
   return [
     `AMAIA AI PUMP HUNTER PRO · ${row.symbol}`,
     `Range: ${chartRange}`,
     `Exchange: ${row.exchange?.toUpperCase() ?? '--'}`,
     `Market: ${row.marketType ?? '--'}`,
+    `Direction: ${sideLabel}`,
     `Decision: ${tradePlan.decision}`,
     `Avg Entry: ${formatPrice(tradePlan.avgEntry)}`,
     `Stop Loss: ${formatPrice(tradePlan.stopPrice)}`,
@@ -659,6 +706,7 @@ export default function DashboardPage() {
     [accountCapital, riskPercentPerTrade, tradePlan]
   );
   const macroBottomBuy = useMemo(() => isMacroBottomBuy(strongestRow), [strongestRow]);
+  const macroTopSell = useMemo(() => isMacroTopSell(strongestRow), [strongestRow]);
   const liquidityTrapMarkers = useMemo(() => {
     if (!chartCandles.length || !strongestRow) return [];
     const highs = chartCandles.map((c) => c.high);
@@ -697,7 +745,7 @@ export default function DashboardPage() {
   );
   const marketModeLabel =
     moduleFilter === 'watchlist'
-      ? 'Pre-Pump Watchlist'
+      ? 'Pre-Move Watchlist'
       : moduleFilter === 'futures'
         ? 'Futures Radar'
         : moduleFilter === 'spot'
@@ -777,6 +825,7 @@ export default function DashboardPage() {
       await sendTelegramAlert({
         symbol: strongestRow?.symbol ?? 'AMAIA_TEST',
         estado: 'WATCHLIST',
+        setupDirection: strongestRow?.setupDirection ?? 'pump',
         marketType: strongestRow?.marketType ?? 'BINANCE_SPOT',
         exchange: strongestRow?.exchange ?? 'binance',
         score: strongestRow?.score ?? 8,
@@ -811,6 +860,7 @@ export default function DashboardPage() {
       symbol: strongestRow.symbol,
       marketType: strongestRow.marketType,
       exchange: strongestRow.exchange,
+      setupDirection: strongestRow.setupDirection ?? 'pump',
       decision: tradePlan.decision,
       score: strongestRow.score,
       avgEntry: tradePlan.avgEntry,
@@ -1342,12 +1392,23 @@ export default function DashboardPage() {
                           <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-slate-300">
                             {strongestRow.exchange.toUpperCase()}
                           </span>
-                          <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
+                          <span
+                            className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                              getSetupDirection(strongestRow) === 'dump'
+                                ? 'border-rose-500/20 bg-rose-500/10 text-rose-200'
+                                : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+                            }`}
+                          >
                             {strongestRow.signalLabel ?? strongestRow.signal_label}
                           </span>
                           {macroBottomBuy ? (
                             <span className="rounded-full border border-fuchsia-500/20 bg-fuchsia-500/12 px-3 py-1 text-xs font-semibold text-fuchsia-200">
                               MACRO BOTTOM BUY
+                            </span>
+                          ) : null}
+                          {macroTopSell ? (
+                            <span className="rounded-full border border-rose-500/25 bg-rose-500/12 px-3 py-1 text-xs font-semibold text-rose-200">
+                              MACRO TOP SELL
                             </span>
                           ) : null}
                         </div>
@@ -1461,12 +1522,20 @@ export default function DashboardPage() {
                       </div>
                       <div className="grid gap-3">
                         <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-                          <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Accumulation Zone</p>
+                          <p className="text-xs uppercase tracking-[0.22em] text-slate-500">
+                            {getSetupDirection(strongestRow) === 'dump' ? 'Distribution Zone' : 'Accumulation Zone'}
+                          </p>
                           <p className="mt-2 text-sm text-white">{formatPercent(strongestRow?.rangePct ?? strongestRow?.range_pct)}</p>
                         </div>
                         <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-                          <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Dump</p>
-                          <p className="mt-2 text-sm text-white">{formatPercent(strongestRow?.dumpPct ?? strongestRow?.dump_pct)}</p>
+                          <p className="text-xs uppercase tracking-[0.22em] text-slate-500">
+                            {getSetupDirection(strongestRow) === 'dump' ? '24H Change' : 'Dump'}
+                          </p>
+                          <p className="mt-2 text-sm text-white">
+                            {getSetupDirection(strongestRow) === 'dump'
+                              ? formatPercent(strongestRow?.change24h)
+                              : formatPercent(strongestRow?.dumpPct ?? strongestRow?.dump_pct)}
+                          </p>
                         </div>
                         <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
                           <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Phase</p>
@@ -1481,14 +1550,22 @@ export default function DashboardPage() {
                     <div className="mt-4 rounded-[22px] border border-emerald-500/15 bg-emerald-500/8 p-4">
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div className="max-w-2xl">
-                          <p className="text-[11px] uppercase tracking-[0.24em] text-emerald-200/70">Buy Ladder</p>
+                          <p className="text-[11px] uppercase tracking-[0.24em] text-emerald-200/70">
+                            {getSetupDirection(strongestRow) === 'dump' ? 'Sell Ladder' : 'Buy Ladder'}
+                          </p>
                           <p className="mt-2 text-sm leading-6 text-emerald-50">
-                            Tres entradas limit sugeridas para {strongestRow?.symbol ?? 'el activo seleccionado'}, adaptadas al rango {chartRange}.
+                            Tres entradas limit sugeridas para {strongestRow?.symbol ?? 'el activo seleccionado'}, adaptadas al rango {chartRange} y a una
+                            estrategia {getSetupDirection(strongestRow) === 'dump' ? 'short' : 'long'}.
                           </p>
                         </div>
                         {macroBottomBuy ? (
                           <span className="inline-flex rounded-full border border-fuchsia-500/20 bg-fuchsia-500/12 px-3 py-1 text-xs font-semibold text-fuchsia-200">
                             MACRO BOTTOM BUY
+                          </span>
+                        ) : null}
+                        {macroTopSell ? (
+                          <span className="inline-flex rounded-full border border-rose-500/25 bg-rose-500/12 px-3 py-1 text-xs font-semibold text-rose-200">
+                            MACRO TOP SELL
                           </span>
                         ) : null}
                       </div>
@@ -1665,8 +1742,12 @@ export default function DashboardPage() {
                           <p className="mt-1 font-semibold text-white">{row.score}</p>
                         </div>
                         <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-2">
-                          <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Dump</p>
-                          <p className="mt-1 text-slate-200">{formatPercent(row.dump_pct)}</p>
+                          <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                            {getSetupDirection(row) === 'dump' ? '24H' : 'Dump'}
+                          </p>
+                          <p className="mt-1 text-slate-200">
+                            {getSetupDirection(row) === 'dump' ? formatPercent(row.change_24h) : formatPercent(row.dump_pct)}
+                          </p>
                         </div>
                         <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-2">
                           <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Range</p>
@@ -1690,8 +1771,17 @@ export default function DashboardPage() {
                             <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getMarketTypeClass(row.market_type)}`}>
                               {row.market_type.toUpperCase()}
                             </span>
-                            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
+                            <span
+                              className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                                getSetupDirection(row) === 'dump'
+                                  ? 'border-rose-500/20 bg-rose-500/10 text-rose-200'
+                                  : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+                              }`}
+                            >
                               {row.signal_label}
+                            </span>
+                            <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getDirectionClass(getSetupDirection(row))}`}>
+                              {getSetupDirection(row) === 'dump' ? 'SELL / SHORT' : 'BUY / LONG'}
                             </span>
                             <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-slate-300">
                               {row.status_label}
@@ -1707,8 +1797,12 @@ export default function DashboardPage() {
                           <p className="mt-2 text-3xl font-semibold text-white">{row.score}</p>
                         </div>
                         <div>
-                          <p className="text-xs uppercase tracking-[0.26em] text-slate-500">Dump</p>
-                          <p className="mt-2 text-sm text-slate-200">{formatPercent(row.dump_pct)}</p>
+                          <p className="text-xs uppercase tracking-[0.26em] text-slate-500">
+                            {getSetupDirection(row) === 'dump' ? '24H Change' : 'Dump'}
+                          </p>
+                          <p className="mt-2 text-sm text-slate-200">
+                            {getSetupDirection(row) === 'dump' ? formatPercent(row.change_24h) : formatPercent(row.dump_pct)}
+                          </p>
                         </div>
                         <div>
                           <p className="text-xs uppercase tracking-[0.26em] text-slate-500">Range</p>
@@ -1719,7 +1813,7 @@ export default function DashboardPage() {
                           <p className="mt-2 text-sm text-slate-200">{typeof row.atr_ratio === 'number' ? row.atr_ratio.toFixed(4) : '--'}</p>
                         </div>
                       </div>
-                      <p className="mt-4 text-sm leading-6 text-slate-400">{row.setup}</p>
+                      <p className="mt-4 text-sm leading-6 text-slate-400">{row.setup ?? row.summary ?? row.explanation}</p>
                     </div>
                   ))}
                 </div>
@@ -1766,8 +1860,9 @@ export default function DashboardPage() {
                     <tr className="text-[11px] uppercase tracking-[0.28em] text-slate-500">
                       <th className="px-5 py-4 font-medium">Pair</th>
                       <th className="px-5 py-4 font-medium">Market</th>
+                      <th className="px-5 py-4 font-medium">Side</th>
                       <th className="px-5 py-4 font-medium">Score</th>
-                      <th className="px-5 py-4 font-medium">Dump</th>
+                      <th className="px-5 py-4 font-medium">Drawdown</th>
                       <th className="px-5 py-4 font-medium">Range</th>
                       <th className="px-5 py-4 font-medium">ATR Ratio</th>
                       <th className="px-5 py-4 font-medium">Volume Pattern</th>
@@ -1795,7 +1890,13 @@ export default function DashboardPage() {
                                   <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${getMarketTypeClass(row.marketType)}`}>
                                     {row.marketType.toUpperCase()}
                                   </span>
-                                  <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
+                                  <span
+                                    className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                                      getSetupDirection(row) === 'dump'
+                                        ? 'border-rose-500/20 bg-rose-500/10 text-rose-200'
+                                        : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+                                    }`}
+                                  >
                                     {row.signalLabel}
                                   </span>
                                   <span className="text-xs uppercase tracking-[0.22em] text-slate-500">
@@ -1809,6 +1910,11 @@ export default function DashboardPage() {
                                 <span>{row.instrumentType}</span>
                                 <span className="text-xs text-slate-500">{formatPrice(row.price)}</span>
                               </div>
+                            </td>
+                            <td className="px-5 py-4 text-sm">
+                              <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${getDirectionClass(getSetupDirection(row))}`}>
+                                {getSetupDirection(row) === 'dump' ? 'SELL / SHORT' : 'BUY / LONG'}
+                              </span>
                             </td>
                             <td className="px-5 py-4 font-mono text-lg text-white">{row.score}</td>
                             <td className="px-5 py-4 text-sm text-slate-200">{formatPercent(row.dumpPct)}</td>
@@ -1824,11 +1930,11 @@ export default function DashboardPage() {
                           </tr>
                           {isExpanded ? (
                             <tr className="bg-white/[0.025]">
-                              <td colSpan="8" className="px-5 py-5">
+                              <td colSpan="9" className="px-5 py-5">
                                 <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr_0.9fr]">
                                   <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-4">
                                     <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">Setup Context</p>
-                                    <p className="mt-3 text-sm leading-7 text-slate-300">{row.setup}</p>
+                                    <p className="mt-3 text-sm leading-7 text-slate-300">{row.summary ?? row.setup ?? row.explanation}</p>
                                     <div className="mt-4 grid gap-3 sm:grid-cols-3 text-sm">
                                       <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
                                         <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Price</p>
@@ -1840,7 +1946,7 @@ export default function DashboardPage() {
                                       </div>
                                       <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
                                         <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500">24H Change</p>
-                                        <p className="mt-2 text-white">{typeof row.priceChange24h === 'number' ? `${row.priceChange24h.toFixed(2)}%` : '--'}</p>
+                                        <p className="mt-2 text-white">{typeof row.change24h === 'number' ? `${row.change24h.toFixed(2)}%` : '--'}</p>
                                       </div>
                                     </div>
                                   </div>
@@ -1853,7 +1959,9 @@ export default function DashboardPage() {
                                       </div>
                                       <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
                                         <span>Signal</span>
-                                        <span className="font-semibold text-emerald-300">{row.signalLabel}</span>
+                                        <span className={`font-semibold ${getSetupDirection(row) === 'dump' ? 'text-rose-200' : 'text-emerald-300'}`}>
+                                          {row.signalLabel}
+                                        </span>
                                       </div>
                                       <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
                                         <span>Narrative</span>
@@ -1898,7 +2006,7 @@ export default function DashboardPage() {
                     })}
                     {!loading && filteredRows.length === 0 ? (
                       <tr>
-                        <td colSpan="8" className="px-5 py-8 text-center text-sm text-slate-400">
+                        <td colSpan="9" className="px-5 py-8 text-center text-sm text-slate-400">
                           No hay filas con los filtros seleccionados.
                         </td>
                       </tr>
@@ -2185,7 +2293,7 @@ export default function DashboardPage() {
             <div className="glass-panel rounded-[36px] p-6">
               <div>
                 <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Watchlist Module</p>
-                <h2 className="mt-2 text-xl font-semibold text-white">Pre-Pump Candidates</h2>
+                <h2 className="mt-2 text-xl font-semibold text-white">Pre-Move Candidates</h2>
               </div>
               <div className="mt-5 space-y-3">
                 {watchlistRows.slice(0, 4).map((row, index) => (
@@ -2206,7 +2314,7 @@ export default function DashboardPage() {
                 ))}
                 {watchlistRows.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-5 text-sm text-slate-400">
-                    No hay activos en pre-pump watchlist ahora mismo.
+                    No hay activos en pre-move watchlist ahora mismo.
                   </div>
                 ) : null}
               </div>
@@ -2251,7 +2359,7 @@ export default function DashboardPage() {
               <div className="glass-panel rounded-[36px] p-6">
                 <div>
                   <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Watchlist Module</p>
-                  <h2 className="mt-2 text-xl font-semibold text-white">Pre-Pump Candidates</h2>
+                  <h2 className="mt-2 text-xl font-semibold text-white">Pre-Move Candidates</h2>
                 </div>
                 <div className="mt-5 space-y-3">
                   {watchlistRows.slice(0, 4).map((row, index) => (
@@ -2272,7 +2380,7 @@ export default function DashboardPage() {
                   ))}
                   {watchlistRows.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-5 text-sm text-slate-400">
-                      No hay activos en pre-pump watchlist ahora mismo.
+                      No hay activos en pre-move watchlist ahora mismo.
                     </div>
                   ) : null}
                 </div>
@@ -2325,8 +2433,10 @@ export default function DashboardPage() {
 
         <TradeDeskModal
           open={activeTradeModal === 'entries'}
-          title={`Entry Ladder · ${strongestRow?.symbol ?? '--'}`}
-          subtitle={`Tres entradas limit sugeridas para ${strongestRow?.symbol ?? 'el activo seleccionado'}, adaptadas al rango ${chartRange}.`}
+          title={`${getSetupDirection(strongestRow) === 'dump' ? 'Sell Ladder' : 'Entry Ladder'} · ${strongestRow?.symbol ?? '--'}`}
+          subtitle={`Tres entradas limit sugeridas para ${strongestRow?.symbol ?? 'el activo seleccionado'}, adaptadas al rango ${chartRange} y al flujo ${
+            getSetupDirection(strongestRow) === 'dump' ? 'short' : 'long'
+          }.`}
           onClose={() => setActiveTradeModal(null)}
         >
           <div className="grid gap-4 lg:grid-cols-3">
@@ -2335,11 +2445,13 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{entry.label}</p>
                   <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-200">
-                    {entry.offsetPct.toFixed(2)}% below
+                    {entry.offsetPct.toFixed(2)}% {getSetupDirection(strongestRow) === 'dump' ? 'above' : 'below'}
                   </span>
                 </div>
                 <p className="mt-4 text-3xl font-semibold text-white">{formatPrice(entry.price)}</p>
-                <p className="mt-4 text-sm leading-7 text-slate-400">Orden limit escalonada para construir posicion con mejor timing.</p>
+                <p className="mt-4 text-sm leading-7 text-slate-400">
+                  Orden limit escalonada para construir posicion {getSetupDirection(strongestRow) === 'dump' ? 'short' : 'long'} con mejor timing.
+                </p>
               </div>
             ))}
           </div>
@@ -2355,7 +2467,7 @@ export default function DashboardPage() {
             <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
               <div className="space-y-5">
                 <div className="rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-5">
-                  <div className="grid gap-4 md:grid-cols-4">
+                  <div className="grid gap-4 md:grid-cols-5">
                     <div>
                       <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Decision</p>
                       <p className="mt-2 text-lg font-semibold text-white">{tradePlan.decision}</p>
@@ -2371,6 +2483,12 @@ export default function DashboardPage() {
                     <div>
                       <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Exchange</p>
                       <p className="mt-2 text-lg font-semibold text-white">{strongestRow?.exchange?.toUpperCase() ?? '--'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Side</p>
+                      <p className={`mt-2 text-lg font-semibold ${tradePlan.side === 'short' ? 'text-rose-200' : 'text-emerald-300'}`}>
+                        {tradePlan.side === 'short' ? 'SELL / SHORT' : 'BUY / LONG'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -2407,6 +2525,11 @@ export default function DashboardPage() {
                   {macroBottomBuy ? (
                     <span className="inline-flex rounded-full border border-fuchsia-500/20 bg-fuchsia-500/12 px-3 py-1 text-xs font-semibold text-fuchsia-200">
                       MACRO BOTTOM BUY
+                    </span>
+                  ) : null}
+                  {macroTopSell ? (
+                    <span className="inline-flex rounded-full border border-rose-500/25 bg-rose-500/12 px-3 py-1 text-xs font-semibold text-rose-200">
+                      MACRO TOP SELL
                     </span>
                   ) : null}
                 </div>
@@ -2576,19 +2699,42 @@ export default function DashboardPage() {
         </div>
 
         {activeAlert ? (
-          <div className="fixed bottom-6 right-6 z-50 w-[min(92vw,420px)] rounded-[28px] border border-emerald-400/20 bg-slate-950/92 p-5 shadow-[0_24px_90px_rgba(16,185,129,0.18)] backdrop-blur">
+          <div
+            className={`fixed bottom-6 right-6 z-50 w-[min(92vw,420px)] rounded-[28px] border p-5 backdrop-blur ${
+              getSetupDirection(activeAlert) === 'dump'
+                ? 'border-rose-400/20 bg-slate-950/92 shadow-[0_24px_90px_rgba(244,63,94,0.16)]'
+                : 'border-emerald-400/20 bg-slate-950/92 shadow-[0_24px_90px_rgba(16,185,129,0.18)]'
+            }`}
+          >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-[11px] uppercase tracking-[0.3em] text-emerald-400">BUY Alert</p>
+                  <p
+                    className={`text-[11px] uppercase tracking-[0.3em] ${
+                      getSetupDirection(activeAlert) === 'dump' ? 'text-rose-300' : 'text-emerald-400'
+                    }`}
+                  >
+                    {getSetupDirection(activeAlert) === 'dump' ? 'SELL Alert' : 'BUY Alert'}
+                  </p>
                   {activeAlert.estado === 'HIGH' ? (
-                    <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-200">
+                    <span
+                      className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${
+                        getSetupDirection(activeAlert) === 'dump'
+                          ? 'border-rose-500/25 bg-rose-500/12 text-rose-200'
+                          : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
+                      }`}
+                    >
                       HIGH CONVICTION
                     </span>
                   ) : null}
                   {macroBottomBuy && activeAlert.symbol === strongestRow?.symbol ? (
                     <span className="rounded-full border border-fuchsia-500/20 bg-fuchsia-500/12 px-3 py-1 text-[11px] font-semibold text-fuchsia-200">
                       MACRO BOTTOM BUY
+                    </span>
+                  ) : null}
+                  {macroTopSell && activeAlert.symbol === strongestRow?.symbol ? (
+                    <span className="rounded-full border border-rose-500/25 bg-rose-500/12 px-3 py-1 text-[11px] font-semibold text-rose-200">
+                      MACRO TOP SELL
                     </span>
                   ) : null}
                 </div>
@@ -2601,7 +2747,7 @@ export default function DashboardPage() {
                     <div className="mt-4 grid gap-2">
                       {suggestedEntries.map((entry) => (
                         <div key={`popup-${entry.label}`} className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2 text-sm text-slate-200">
-                          {entry.label}: {formatPrice(entry.price)}
+                          {entry.label} ({getSetupDirection(activeAlert) === 'dump' ? 'sell limit' : 'buy limit'}): {formatPrice(entry.price)}
                         </div>
                       ))}
                       {tradePlan ? (

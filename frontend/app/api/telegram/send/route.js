@@ -21,6 +21,7 @@ export async function POST(request) {
     payload.title ?? 'AMAIA AI PUMP HUNTER PRO',
     line('Market', payload.market),
     line('Exchange', payload.exchange),
+    line('Side', payload.side),
     line('Score', payload.score),
     line('Narrative', payload.narrative),
     line('Decision', payload.decision),

@@ -60,10 +60,13 @@ export async function saveTelegramSettings(settings) {
 }
 
 export async function sendTelegramAlert(alert) {
+  const setupDirection = alert.setupDirection ?? alert.setup_direction ?? 'pump';
+  const sideLabel = setupDirection === 'dump' ? 'SELL' : 'BUY';
   const telegramPayload = {
-    title: `${alert.estado === 'HIGH' ? 'BUY ALERT' : 'WATCH ALERT'} · ${alert.symbol}`,
+    title: `${alert.estado === 'HIGH' ? `${sideLabel} ALERT` : 'WATCH ALERT'} · ${alert.symbol}`,
     market: alert.marketType,
     exchange: alert.exchange,
+    side: setupDirection.toUpperCase(),
     score: alert.score,
     narrative: alert.narrativeLabel ?? alert.narrative,
     decision: alert.tradePlan?.decision ?? '--',

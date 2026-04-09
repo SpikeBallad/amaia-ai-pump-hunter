@@ -30,6 +30,17 @@ function getMarketBucket(row) {
   return row.marketBucket ?? (row.marketType?.endsWith?.('FUTURES') ? 'futures' : 'spot');
 }
 
+function getSetupDirection(row) {
+  return row?.setupDirection ?? row?.setup_direction ?? 'pump';
+}
+
+function computePnlUsd(side, entryPrice, livePrice, quantity) {
+  if (typeof livePrice !== 'number' || typeof entryPrice !== 'number' || typeof quantity !== 'number') {
+    return 0;
+  }
+  return (side === 'short' ? entryPrice - livePrice : livePrice - entryPrice) * quantity;
+}
+
 function createInitialEngineState() {
   return {
     processedAlertIds: [],
@@ -75,6 +86,7 @@ function normalizePosition(position) {
 
   return {
     ...position,
+    side: position?.side === 'short' ? 'short' : 'long',
     plannedAverageEntry: typeof position?.plannedAverageEntry === 'number' ? position.plannedAverageEntry : baseEntryPrice,
     strategyLabel: position?.strategyLabel ?? 'Single entry + structural stop + 2.6R target',
     targetRMultiple: typeof position?.targetRMultiple === 'number' ? position.targetRMultiple : 2.6,
@@ -124,32 +136,46 @@ function normalizeEngineState(state) {
 function buildTradeTemplate(row) {
   if (!row?.price) return null;
 
+  const setupDirection = getSetupDirection(row);
+  const isShort = setupDirection === 'dump';
   const atrRatio = typeof row.atrRatio === 'number' ? row.atrRatio : 0.01;
   const rangePct = typeof row.rangePct === 'number' ? row.rangePct : 12;
   const candles = row.candles ?? [];
+  const accumulationHigh = candles.length ? Math.max(...candles.map((candle) => candle.high)) : row.price * 1.08;
   const accumulationLow = candles.length ? Math.min(...candles.map((candle) => candle.low)) : row.price * 0.92;
   const stopBufferPct = Math.max(atrRatio * 100 * 1.1, Math.min(rangePct * 0.35, 8));
-  const stopFromRange = row.price * (1 - stopBufferPct / 100);
-  const structuralStop = accumulationLow * (1 - Math.max(atrRatio * 0.8, 0.008));
-  const stopPrice = Math.min(stopFromRange, structuralStop);
+  const stopFromRange = isShort ? row.price * (1 + stopBufferPct / 100) : row.price * (1 - stopBufferPct / 100);
+  const structuralStop = isShort
+    ? accumulationHigh * (1 + Math.max(atrRatio * 0.8, 0.008))
+    : accumulationLow * (1 - Math.max(atrRatio * 0.8, 0.008));
+  const stopPrice = isShort ? Math.max(stopFromRange, structuralStop) : Math.min(stopFromRange, structuralStop);
   const dcaStep1Pct = Math.min(Math.max(rangePct * 0.12, 1.2), 3.8);
   const dcaStep2Pct = Math.min(Math.max(rangePct * 0.24, 2.4), 7.2);
-  const entries = [
-    { label: 'E1', price: row.price, allocation: 0.5 },
-    { label: 'E2', price: row.price * (1 - dcaStep1Pct / 100), allocation: 0.3 },
-    { label: 'E3', price: row.price * (1 - dcaStep2Pct / 100), allocation: 0.2 },
-  ];
+  const entries = isShort
+    ? [
+        { label: 'E1', price: row.price, allocation: 0.5 },
+        { label: 'E2', price: row.price * (1 + dcaStep1Pct / 100), allocation: 0.3 },
+        { label: 'E3', price: row.price * (1 + dcaStep2Pct / 100), allocation: 0.2 },
+      ]
+    : [
+        { label: 'E1', price: row.price, allocation: 0.5 },
+        { label: 'E2', price: row.price * (1 - dcaStep1Pct / 100), allocation: 0.3 },
+        { label: 'E3', price: row.price * (1 - dcaStep2Pct / 100), allocation: 0.2 },
+      ];
   const averageEntry = entries.reduce((sum, entry) => sum + entry.price * entry.allocation, 0);
-  const riskPerUnit = Math.max(averageEntry - stopPrice, averageEntry * 0.005);
-  const targetPrice = averageEntry + riskPerUnit * 2.6;
+  const riskPerUnit = Math.max(Math.abs(averageEntry - stopPrice), averageEntry * 0.005);
+  const targetPrice = isShort ? averageEntry - riskPerUnit * 2.6 : averageEntry + riskPerUnit * 2.6;
 
   return {
+    side: isShort ? 'short' : 'long',
     entryPrice: averageEntry,
     stopPrice,
     targetPrice,
-    riskPct: ((averageEntry - stopPrice) / averageEntry) * 100,
+    riskPct: (Math.abs(averageEntry - stopPrice) / averageEntry) * 100,
     entries,
-    strategyLabel: '3-step DCA + structural stop + 2.6R target',
+    strategyLabel: isShort
+      ? '3-step distribution ladder + structural stop + 2.6R downside target'
+      : '3-step DCA + structural stop + 2.6R target',
   };
 }
 
@@ -198,6 +224,7 @@ function openPositionInState(current, row, triggerId, options = {}) {
     exchange: row.exchange,
     marketBucket: bucket,
     openedAt: new Date().toISOString(),
+    side: template.side,
     entryPrice: initialEntry.price,
     plannedAverageEntry: template.entryPrice,
     stopPrice: template.stopPrice,
@@ -342,11 +369,17 @@ function AccountSummaryCard({ eyebrow, title, bucket, account, stats, unrealized
 function PositionStrategyCard({ position, livePrice, livePnl }) {
   const filledEntries = position.dcaEntries?.filter((entry) => entry.filled) ?? [];
   const pendingEntries = position.dcaEntries?.filter((entry) => !entry.filled) ?? [];
+  const isShort = position.side === 'short';
 
   return (
     <div className="mt-4 grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
       <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-4">
-        <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Strategy</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Strategy</p>
+          <span className={`rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${isShort ? 'border-rose-500/20 bg-rose-500/12 text-rose-200' : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'}`}>
+            {isShort ? 'Short' : 'Long'}
+          </span>
+        </div>
         <p className="mt-2 text-sm font-medium text-white">{position.strategyLabel}</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-3 py-3">
@@ -398,7 +431,9 @@ function PositionStrategyCard({ position, livePrice, livePnl }) {
         {pendingEntries.length === 0 ? (
           <p className="mt-3 text-xs text-emerald-300">Todas las entradas DCA ya fueron ejecutadas.</p>
         ) : (
-          <p className="mt-3 text-xs text-slate-400">Las patas pendientes se activan cuando el precio toca esos niveles reales del mercado.</p>
+          <p className="mt-3 text-xs text-slate-400">
+            Las patas pendientes se activan cuando el precio toca los niveles {isShort ? 'por arriba' : 'por abajo'} en mercado real.
+          </p>
         )}
       </div>
     </div>
@@ -541,7 +576,7 @@ export default function CatBotPage() {
       return 'Hay datos de mercado, pero no hay setups HIGH que cumplan tus filtros actuales.';
     }
     if (!alertLog.length) {
-      return 'No han entrado alertas HIGH nuevas en esta sesion. Puedes lanzar un trade demo manual para validar el motor.';
+      return 'No han entrado alertas HIGH nuevas en esta sesion. Puedes lanzar un trade demo manual para validar el motor long/short.';
     }
     return '';
   }, [rows.length, eligibleRows.length, alertLog.length]);
@@ -652,9 +687,11 @@ export default function CatBotPage() {
           let nextEntryPrice = position.entryPrice;
           let nextDeployedNotionalUsd = position.deployedNotionalUsd;
           let dcaFilledThisTick = false;
+          const isShort = position.side === 'short';
 
           nextEntries.forEach((entry) => {
-            if (entry.filled || row.price > entry.price) return;
+            if (entry.filled) return;
+            if ((!isShort && row.price > entry.price) || (isShort && row.price < entry.price)) return;
             const legNotionalUsd = position.notionalUsd * entry.allocation;
             const legQuantity = legNotionalUsd / entry.price;
             const blendedQuantity = nextQuantity + legQuantity;
@@ -666,11 +703,13 @@ export default function CatBotPage() {
             dcaFilledThisTick = true;
           });
 
-          const riskPerUnit = Math.max(nextEntryPrice - position.stopPrice, nextEntryPrice * 0.005);
-          const refreshedTargetPrice = nextEntryPrice + riskPerUnit * position.targetRMultiple;
+          const riskPerUnit = Math.max(Math.abs(nextEntryPrice - position.stopPrice), nextEntryPrice * 0.005);
+          const refreshedTargetPrice = isShort
+            ? nextEntryPrice - riskPerUnit * position.targetRMultiple
+            : nextEntryPrice + riskPerUnit * position.targetRMultiple;
 
-          const stopHit = row.price <= position.stopPrice;
-          const targetHit = row.price >= refreshedTargetPrice;
+          const stopHit = isShort ? row.price >= position.stopPrice : row.price <= position.stopPrice;
+          const targetHit = isShort ? row.price <= refreshedTargetPrice : row.price >= refreshedTargetPrice;
 
           if (!stopHit && !targetHit) {
             nextOpenPositions.push(
@@ -690,7 +729,7 @@ export default function CatBotPage() {
 
           changed = true;
           const exitPrice = targetHit ? refreshedTargetPrice : position.stopPrice;
-          const pnlUsd = (exitPrice - nextEntryPrice) * nextQuantity;
+          const pnlUsd = computePnlUsd(position.side, nextEntryPrice, exitPrice, nextQuantity);
           closedPositions.push({
             ...position,
             closedAt: new Date().toISOString(),
@@ -742,11 +781,11 @@ export default function CatBotPage() {
     }
 
     if (spotStats.winRate > futuresStats.winRate) {
-      return 'Por ahora Spot tiene mejor win rate que Futures en este estilo de pump hunt.';
+      return 'Por ahora Spot tiene mejor win rate que Futures en este estilo de move hunt.';
     }
 
     if (futuresStats.winRate > spotStats.winRate) {
-      return 'Por ahora Futures tiene mejor win rate que Spot en este estilo de pump hunt.';
+      return 'Por ahora Futures tiene mejor win rate que Spot en este estilo de move hunt.';
     }
 
     return 'Spot y Futures están empatados por ahora; conviene acumular más muestras.';
@@ -765,7 +804,7 @@ export default function CatBotPage() {
     return openPositions.reduce((sum, position) => {
       const livePrice = resolveLivePrice(position);
       if (typeof livePrice !== 'number') return sum;
-      return sum + (livePrice - position.entryPrice) * position.quantity;
+      return sum + computePnlUsd(position.side, position.entryPrice, livePrice, position.quantity);
     }, 0);
   }, [openPositions, liveRowsByKey, livePriceOverrides]);
 
@@ -773,7 +812,7 @@ export default function CatBotPage() {
     return engineState.spot.openPositions.reduce((sum, position) => {
       const livePrice = resolveLivePrice(position);
       if (typeof livePrice !== 'number') return sum;
-      return sum + (livePrice - position.entryPrice) * position.quantity;
+      return sum + computePnlUsd(position.side, position.entryPrice, livePrice, position.quantity);
     }, 0);
   }, [engineState.spot.openPositions, liveRowsByKey, livePriceOverrides]);
 
@@ -781,7 +820,7 @@ export default function CatBotPage() {
     return engineState.futures.openPositions.reduce((sum, position) => {
       const livePrice = resolveLivePrice(position);
       if (typeof livePrice !== 'number') return sum;
-      return sum + (livePrice - position.entryPrice) * position.quantity;
+      return sum + computePnlUsd(position.side, position.entryPrice, livePrice, position.quantity);
     }, 0);
   }, [engineState.futures.openPositions, liveRowsByKey, livePriceOverrides]);
 
@@ -849,7 +888,7 @@ export default function CatBotPage() {
                 <div className="space-y-4">
                   <div className="flex flex-wrap items-center gap-3">
                     <span className="rounded-full border border-fuchsia-500/20 bg-fuchsia-500/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.32em] text-fuchsia-200">
-                      Cat Bot Pump Hunter
+                      Cat Bot Move Hunter
                     </span>
                     <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.32em] text-cyan-300">
                       Separate Validation Window
@@ -858,10 +897,10 @@ export default function CatBotPage() {
                   <div>
                     <p className="text-xs uppercase tracking-[0.42em] text-slate-500">Paper Live Win Rate Engine</p>
                     <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-tight text-white sm:text-5xl">
-                      Measure if Amaia performs better in Spot or Futures for pump hunt structures.
+                      Measure if Amaia performs better in Spot or Futures for pump and dump structures.
                     </h1>
                     <p className="mt-5 max-w-3xl text-base leading-8 text-slate-400">
-                      Esta ventana no opera dinero real. Ejecuta compras demo automáticas cuando entra una alerta HIGH y deja
+                      Esta ventana no opera dinero real. Ejecuta trades demo automáticos long/short cuando entra una alerta HIGH y deja
                       registro del win rate, PnL y comportamiento por mercado.
                     </p>
                     <div className="mt-5 inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-200">
@@ -968,14 +1007,14 @@ export default function CatBotPage() {
                   onClick={() => toggleAutoTrade('spot')}
                   className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left text-sm text-slate-200 transition hover:bg-white/[0.08]"
                 >
-                  Spot auto-buy: <span className="font-semibold text-white">{engineState.spot.autoTrade ? 'ON' : 'OFF'}</span>
+                  Spot auto-trade: <span className="font-semibold text-white">{engineState.spot.autoTrade ? 'ON' : 'OFF'}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => toggleAutoTrade('futures')}
                   className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-left text-sm text-slate-200 transition hover:bg-white/[0.08]"
                 >
-                  Futures auto-buy: <span className="font-semibold text-white">{engineState.futures.autoTrade ? 'ON' : 'OFF'}</span>
+                  Futures auto-trade: <span className="font-semibold text-white">{engineState.futures.autoTrade ? 'ON' : 'OFF'}</span>
                 </button>
                 <button
                   type="button"
@@ -1132,7 +1171,9 @@ export default function CatBotPage() {
                 <div key={position.id} className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
                   {(() => {
                     const livePrice = resolveLivePrice(position);
-                    const livePnl = typeof livePrice === 'number' ? (livePrice - position.entryPrice) * position.quantity : null;
+                    const livePnl = typeof livePrice === 'number'
+                      ? computePnlUsd(position.side, position.entryPrice, livePrice, position.quantity)
+                      : null;
 
                     return (
                       <>
@@ -1140,11 +1181,17 @@ export default function CatBotPage() {
                           <div>
                             <p className="font-semibold text-white">{position.symbol}</p>
                             <p className="mt-1 text-xs uppercase tracking-[0.2em] text-slate-500">
-                              {position.exchange.toUpperCase()} · {position.marketBucket.toUpperCase()} · x{position.leverage}
+                              {position.exchange.toUpperCase()} · {position.marketBucket.toUpperCase()} · {position.side === 'short' ? 'SHORT' : 'LONG'} · x{position.leverage}
                             </p>
                           </div>
-                          <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-200">
-                            OPEN
+                          <span
+                            className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${
+                              position.side === 'short'
+                                ? 'border-rose-500/20 bg-rose-500/10 text-rose-200'
+                                : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-200'
+                            }`}
+                          >
+                            {position.side === 'short' ? 'OPEN SHORT' : 'OPEN LONG'}
                           </span>
                         </div>
                         <PositionStrategyCard position={position} livePrice={livePrice} livePnl={livePnl} />
@@ -1176,7 +1223,7 @@ export default function CatBotPage() {
                     </span>
                   </div>
                   <p className="mt-2 text-sm text-slate-400">
-                    Entry {formatPrice(trade.entryPrice)} → Exit {formatPrice(trade.exitPrice)} · PnL {formatPrice(trade.pnlUsd)}
+                    {trade.side === 'short' ? 'Short' : 'Long'} · Entry {formatPrice(trade.entryPrice)} → Exit {formatPrice(trade.exitPrice)} · PnL {formatPrice(trade.pnlUsd)}
                   </p>
                   <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-500">
                     {trade.exitReason === 'TARGET_HIT' ? 'Closed by target' : trade.exitReason === 'STOP_HIT' ? 'Closed by stop' : 'Closed'}
@@ -1201,7 +1248,7 @@ export default function CatBotPage() {
                     </span>
                   </div>
                   <p className="mt-2 text-sm text-slate-400">
-                    Entry {formatPrice(trade.entryPrice)} → Exit {formatPrice(trade.exitPrice)} · PnL {formatPrice(trade.pnlUsd)}
+                    {trade.side === 'short' ? 'Short' : 'Long'} · Entry {formatPrice(trade.entryPrice)} → Exit {formatPrice(trade.exitPrice)} · PnL {formatPrice(trade.pnlUsd)}
                   </p>
                   <p className="mt-2 text-xs uppercase tracking-[0.2em] text-slate-500">
                     {trade.exitReason === 'TARGET_HIT' ? 'Closed by target' : trade.exitReason === 'STOP_HIT' ? 'Closed by stop' : 'Closed'}

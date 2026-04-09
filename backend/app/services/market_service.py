@@ -152,7 +152,9 @@ def _build_indicator_snapshot(
     accumulation_low = min(lows[-accumulation_window:])
     range_pct = ((accumulation_high - accumulation_low) / current_close * 100) if current_close else 0.0
     cycle_high = max(highs)
+    cycle_low = min(lows)
     dump_pct = ((cycle_high - current_close) / cycle_high * 100) if cycle_high else 0.0
+    rally_pct = ((current_close - cycle_low) / cycle_low * 100) if cycle_low else 0.0
     change_24h = _change_24h(closes, timeframe)
     volume_change_pct = (
         ((current_volume - average_volume_20) / average_volume_20 * 100)
@@ -175,9 +177,11 @@ def _build_indicator_snapshot(
         "volume_change_pct": _round(volume_change_pct, 4),
         "range_pct": _round(range_pct, 4),
         "dump_pct": _round(dump_pct, 4),
+        "rally_pct": _round(rally_pct, 4),
         "accumulation_high": _round(accumulation_high, 6),
         "accumulation_low": _round(accumulation_low, 6),
         "cycle_high": _round(cycle_high, 6),
+        "cycle_low": _round(cycle_low, 6),
     }
 
 
@@ -237,6 +241,7 @@ def _build_setup_analysis(
     ema_50 = indicators["ema_50"] or last_close
     atr_ratio = indicators["atr_ratio"] or 1.0
     dump_pct = indicators["dump_pct"] or 0.0
+    rally_pct = indicators["rally_pct"] or 0.0
     range_pct = indicators["range_pct"] or 100.0
     change_24h = indicators["change_24h"] or 0.0
     accumulation_high = indicators["accumulation_high"] or max(highs[-30:])
@@ -246,13 +251,17 @@ def _build_setup_analysis(
 
     volume_pattern, volume_compression, volume_spike = _volume_pattern(volumes, indicators)
     ema_flattened = ema_spread_ratio <= 0.02
+    ema_bearish = ema_9 <= ema_20 <= ema_50
+    ema_bullish = ema_9 >= ema_20 >= ema_50
     liquidity_trap = _liquidity_trap(highs, lows, closes, accumulation_high, accumulation_low)
     low_volatility = atr_ratio <= 0.02
     tight_range = range_pct <= 15
     deep_dump = dump_pct >= 70
+    deep_rally = rally_pct >= 70
     breakout_starting = closes[-1] > accumulation_high * 1.015 and volumes[-1] >= average_volume_20 * 1.6
+    breakdown_starting = closes[-1] < accumulation_low * 0.985 and volumes[-1] >= average_volume_20 * 1.6
 
-    score_breakdown = {
+    pump_breakdown = {
         "deep_dump": 2 if deep_dump else 0,
         "tight_accumulation": 2 if tight_range else 0,
         "low_volatility": 2 if low_volatility else 0,
@@ -260,51 +269,109 @@ def _build_setup_analysis(
         "ema_flattening": 1 if ema_flattened else 0,
         "liquidity_traps": 1 if liquidity_trap else 0,
     }
-    score = sum(score_breakdown.values())
+    dump_breakdown = {
+        "deep_rally": 2 if deep_rally else 0,
+        "tight_distribution": 2 if tight_range else 0,
+        "volatility_regime": 1 if atr_ratio >= 0.014 else 0,
+        "distribution_volume": 2 if volume_compression and volume_spike else 1 if volume_spike else 0,
+        "bearish_ema_pressure": 1 if ema_bearish else 0,
+        "liquidity_sweeps": 1 if liquidity_trap else 0,
+        "downside_trigger": 1 if breakdown_starting else 0,
+    }
+    pump_score = sum(pump_breakdown.values())
+    dump_score = sum(dump_breakdown.values())
+
+    trend = _trend_from_indicators(indicators)
+    if dump_score > pump_score:
+        setup_direction = "dump"
+    elif pump_score > dump_score:
+        setup_direction = "pump"
+    else:
+        setup_direction = "dump" if trend == "bearish" or change_24h < 0 else "pump"
+
+    score_breakdown = dump_breakdown if setup_direction == "dump" else pump_breakdown
+    score = dump_score if setup_direction == "dump" else pump_score
+    is_breaking_out = breakdown_starting if setup_direction == "dump" else breakout_starting
 
     excluded_reason = None
-    if change_24h > 25:
+    if setup_direction == "pump" and change_24h > 25:
         excluded_reason = "Excluded: 24h change above 25%, already pumped."
+    elif setup_direction == "dump" and change_24h < -20:
+        excluded_reason = "Excluded: 24h change below -20%, already dumped."
 
-    if score >= 8 and breakout_starting and not excluded_reason:
-        estado = "HIGH"
-        status_label = "Breakout Starting"
-        signal_label = "HIGH PROBABILITY PUMP SETUP"
-        summary = "Ruptura inicial detectada tras compresion profunda."
-    elif score >= 8 and not excluded_reason:
-        estado = "HIGH"
-        status_label = "Pre-Breakout"
-        signal_label = "HIGH PROBABILITY PUMP SETUP"
-        summary = "Pre-breakout con compresion avanzada y perfil de acumulacion fuerte."
-    elif score >= 5 and not excluded_reason:
-        estado = "WATCHLIST"
-        status_label = "Accumulation"
-        signal_label = "Accumulation Build"
-        summary = "Acumulacion valida, pero aun sin la calidad maxima del setup."
+    if setup_direction == "dump":
+        if score >= 8 and breakdown_starting and not excluded_reason:
+            estado = "HIGH"
+            status_label = "Breakdown Starting"
+            signal_label = "HIGH PROBABILITY DUMP SETUP"
+            summary = "Ruptura bajista inicial detectada tras distribucion comprimida."
+        elif score >= 8 and not excluded_reason:
+            estado = "HIGH"
+            status_label = "Pre-Breakdown"
+            signal_label = "HIGH PROBABILITY DUMP SETUP"
+            summary = "Pre-breakdown con distribucion avanzada y agotamiento de compradores."
+        elif score >= 5 and not excluded_reason:
+            estado = "WATCHLIST"
+            status_label = "Distribution"
+            signal_label = "Distribution Build"
+            summary = "Distribucion valida, aun sin confirmacion de ruptura bajista."
+        else:
+            estado = "IGNORE"
+            status_label = "Distribution"
+            signal_label = "No Edge"
+            summary = excluded_reason or "La estructura todavia no muestra una ventaja estadistica clara."
     else:
-        estado = "IGNORE"
-        status_label = "Accumulation"
-        signal_label = "No Edge"
-        summary = excluded_reason or "La estructura todavia no muestra una ventaja estadistica clara."
+        if score >= 8 and breakout_starting and not excluded_reason:
+            estado = "HIGH"
+            status_label = "Breakout Starting"
+            signal_label = "HIGH PROBABILITY PUMP SETUP"
+            summary = "Ruptura inicial detectada tras compresion profunda."
+        elif score >= 8 and not excluded_reason:
+            estado = "HIGH"
+            status_label = "Pre-Breakout"
+            signal_label = "HIGH PROBABILITY PUMP SETUP"
+            summary = "Pre-breakout con compresion avanzada y perfil de acumulacion fuerte."
+        elif score >= 5 and not excluded_reason:
+            estado = "WATCHLIST"
+            status_label = "Accumulation"
+            signal_label = "Accumulation Build"
+            summary = "Acumulacion valida, pero aun sin la calidad maxima del setup."
+        else:
+            estado = "IGNORE"
+            status_label = "Accumulation"
+            signal_label = "No Edge"
+            summary = excluded_reason or "La estructura todavia no muestra una ventaja estadistica clara."
 
     quote_volume = average_volume_20 * last_close
     low_cap = quote_volume <= 15_000_000
     silent_market = quote_volume <= 4_000_000 and abs(change_24h) <= 3
     signal_strength = round((score / 10) * 100, 2)
-    volume_score = round(min(100.0, max(0.0, (55 if volume_compression else 35) + (25 if volume_spike else 0))), 2)
-    momentum_score = round(min(100.0, max(0.0, 50 + (max(0.0, 25 - abs(change_24h)) * 2) - (atr_ratio * 1000))), 2)
+    volume_score = round(min(100.0, max(0.0, (58 if volume_compression else 38) + (22 if volume_spike else 0))), 2)
+    directional_momentum = max(0.0, -change_24h) if setup_direction == "dump" else max(0.0, change_24h)
+    trend_bonus = 12 if (setup_direction == "dump" and ema_bearish) or (setup_direction == "pump" and ema_bullish) else 0
+    momentum_score = round(min(100.0, max(0.0, 40 + directional_momentum * 2 + trend_bonus - (atr_ratio * 700))), 2)
 
-    explanation = (
-        f"This {market_type.replace('_', ' ').title()} asset on {scan_exchange.title()} shows a {dump_pct:.1f}% drawdown, "
-        f"a tight {range_pct:.1f}% accumulation range, and an ATR ratio of {atr_ratio:.4f}. "
-        f"Volume profile: {volume_pattern}. Liquidity traps are {'present' if liquidity_trap else 'limited'}, "
-        f"while EMA compression is {'confirmed' if ema_flattened else 'still loose'}. "
-        f"The instrument is classified as {instrument_type.lower()} and currently sits in {status_label.lower()} mode."
-    )
+    if setup_direction == "dump":
+        explanation = (
+            f"This {market_type.replace('_', ' ').title()} asset on {scan_exchange.title()} shows a {rally_pct:.1f}% rally "
+            f"from cycle low, a tight {range_pct:.1f}% distribution range, and an ATR ratio of {atr_ratio:.4f}. "
+            f"Volume profile: {volume_pattern}. Liquidity sweeps are {'present' if liquidity_trap else 'limited'}, "
+            f"while bearish EMA pressure is {'confirmed' if ema_bearish else 'developing'}. "
+            f"The instrument is classified as {instrument_type.lower()} and currently sits in {status_label.lower()} mode."
+        )
+    else:
+        explanation = (
+            f"This {market_type.replace('_', ' ').title()} asset on {scan_exchange.title()} shows a {dump_pct:.1f}% drawdown, "
+            f"a tight {range_pct:.1f}% accumulation range, and an ATR ratio of {atr_ratio:.4f}. "
+            f"Volume profile: {volume_pattern}. Liquidity traps are {'present' if liquidity_trap else 'limited'}, "
+            f"while EMA compression is {'confirmed' if ema_flattened else 'still loose'}. "
+            f"The instrument is classified as {instrument_type.lower()} and currently sits in {status_label.lower()} mode."
+        )
 
     return {
         "score": score,
         "estado": estado,
+        "setup_direction": setup_direction,
         "status_label": status_label,
         "signal_label": signal_label,
         "summary": summary,
@@ -317,7 +384,7 @@ def _build_setup_analysis(
         "ema_flattened": ema_flattened,
         "low_cap": low_cap,
         "silent_market": silent_market,
-        "is_breaking_out": breakout_starting,
+        "is_breaking_out": is_breaking_out,
         "excluded_reason": excluded_reason,
         "signal_strength": signal_strength,
         "volume_score": volume_score,
@@ -414,6 +481,7 @@ async def scan_pair(
         timeframe=timeframe,
         score=setup["score"],
         estado=setup["estado"],
+        setup_direction=setup["setup_direction"],
         status_label=setup["status_label"],
         trend=_trend_from_indicators(indicators),
         signal_strength=setup["signal_strength"],
@@ -468,8 +536,6 @@ async def _build_scan_targets(
             for symbol in _apply_scan_cap(symbols):
                 snapshot = snapshots.get(symbol) or {}
                 change_24h = float(snapshot.get("change_24h", 0.0))
-                if change_24h > 25:
-                    continue
                 eligible_symbols.append(
                     (
                         symbol,
@@ -513,8 +579,7 @@ async def _collect_universe_metrics(
                 change_24h = float((snapshots.get(symbol) or {}).get("change_24h", 0.0))
                 if change_24h > 25:
                     excluded_pumped_pairs += 1
-                else:
-                    eligible_pairs += 1
+                eligible_pairs += 1
 
     return {
         "total_pairs_discovered": total_pairs_discovered,
@@ -571,13 +636,18 @@ def _select_refresh_targets(
 
 def _ranking_key(scan: ScanResult) -> tuple[float, ...]:
     attention_score = max(0.0, 100 - abs(scan.change_24h))
+    direction_edge = (
+        float(scan.indicators.get("rally_pct") or 0.0)
+        if scan.setup_direction == "dump"
+        else float(scan.dump_pct)
+    )
     return (
         float(scan.score),
         scan.signal_strength,
         1.0 if scan.low_cap else 0.0,
         1.0 if scan.silent_market else 0.0,
         attention_score,
-        scan.dump_pct,
+        direction_edge,
     )
 
 
@@ -593,6 +663,7 @@ def _to_top_opportunity(scan: ScanResult, rank: int) -> TopOpportunity:
         timeframe=scan.timeframe,
         score=scan.score,
         estado=scan.estado,
+        setup_direction=scan.setup_direction,
         status_label=scan.status_label,
         opportunity_score=scan.signal_strength,
         signal_label=scan.signal_label,

@@ -10,8 +10,17 @@ MarketRequestType = Literal["spot", "futures"]
 MarketTypeFilter = Literal["spot", "futures", "all"]
 MarketTypeName = Literal["BINANCE_SPOT", "BINANCE_FUTURES", "MEXC_SPOT", "MEXC_FUTURES"]
 InstrumentType = Literal["SPOT", "PERPETUAL"]
-PumpState = Literal["HIGH", "WATCHLIST", "IGNORE"]
-SetupStatus = Literal["Accumulation", "Pre-Breakout", "Breakout Starting"]
+SetupState = Literal["HIGH", "WATCHLIST", "IGNORE"]
+PumpState = SetupState
+SetupDirection = Literal["pump", "dump"]
+SetupStatus = Literal[
+    "Accumulation",
+    "Pre-Breakout",
+    "Breakout Starting",
+    "Distribution",
+    "Pre-Breakdown",
+    "Breakdown Starting",
+]
 NarrativeMode = Literal["Smart Money", "Core Narratives", "All Market", "Microcaps (MEXC)"]
 
 
@@ -66,7 +75,8 @@ class ScanResult(BaseModel):
     narrative_label: str
     timeframe: TimeframeName
     score: int = Field(..., ge=0, le=10)
-    estado: PumpState
+    estado: SetupState
+    setup_direction: SetupDirection
     status_label: SetupStatus
     trend: str = Field(..., examples=["bullish"])
     signal_strength: float = Field(..., ge=0, le=100, examples=[82.5])
@@ -103,7 +113,8 @@ class TopOpportunity(BaseModel):
     narrative_label: str
     timeframe: TimeframeName
     score: int = Field(..., ge=0, le=10)
-    estado: PumpState
+    estado: SetupState
+    setup_direction: SetupDirection
     status_label: SetupStatus
     opportunity_score: float = Field(..., ge=0, le=100, examples=[91.4])
     signal_label: str
@@ -173,8 +184,8 @@ class ScoreChange(BaseModel):
     instrument_type: InstrumentType
     previous_score: int
     current_score: int
-    previous_estado: PumpState
-    current_estado: PumpState
+    previous_estado: SetupState
+    current_estado: SetupState
 
 
 class WebSocketSnapshot(BaseModel):
