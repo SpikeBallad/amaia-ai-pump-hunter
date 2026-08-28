@@ -1,4 +1,16 @@
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Read backend/.env BEFORE any os.getenv below runs, and never override a real
+# environment variable: in production (Railway, Docker) the platform supplies
+# the values and a stale checked-out file must not win.
+#
+# Without this the settings silently fell back to their defaults — an .env file
+# sitting right next to the code, read by nobody, which is the worst kind of
+# configuration bug because everything looks correct.
+load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
 
 from pydantic import BaseModel
 

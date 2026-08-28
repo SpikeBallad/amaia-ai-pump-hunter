@@ -1,3 +1,7 @@
 fastapi==0.115.12
 httpx==0.28.1
+# Already present transitively via uvicorn[standard]; declared because
+# config.py now depends on it directly, and a transitive dependency that
+# disappears takes the Alpaca credentials with it — silently.
+python-dotenv==1.2.2
 uvicorn[standard]==0.34.1
