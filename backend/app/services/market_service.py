@@ -3,7 +3,8 @@ from datetime import UTC, datetime, timedelta
 from statistics import mean
 
 from app.core.config import settings
-from app.core.narratives import get_narrative, get_narrative_label
+from app.core.narratives import get_narrative, get_narrative_label, is_crypto_symbol
+from app.core.sectors import prime_sectors
 from app.models.market import (
     CacheInvalidateResponse,
     CacheStatsResponse,
@@ -70,6 +71,18 @@ async def list_pairs() -> PairListResponse:
                     pair.supported_markets.append(market_name)  # type: ignore[arg-type]
                 if instrument_name not in pair.supported_instruments:
                     pair.supported_instruments.append(instrument_name)  # type: ignore[arg-type]
+
+    # Equity sectors are resolved once the universe is known, then written back
+    # over the placeholder label. Constructing PairItem already asked for a
+    # label, and at that point the cache may not hold this ticker yet — an
+    # equity would ship as "Equities" until some later request happened to warm
+    # it. Doing it here means one pass, and crypto never touches the network:
+    # prime_sectors is only handed tickers that are not USDT pairs.
+    equities = [sym for sym in pair_map if not is_crypto_symbol(sym)]
+    if equities:
+        await prime_sectors(equities)
+        for sym in equities:
+            pair_map[sym].narrative_label = get_narrative_label(sym)
 
     pairs = sorted(pair_map.values(), key=lambda item: item.symbol)
     return PairListResponse(

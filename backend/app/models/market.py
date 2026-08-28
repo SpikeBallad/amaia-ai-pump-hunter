@@ -21,7 +21,12 @@ SetupStatus = Literal[
     "Pre-Breakdown",
     "Breakdown Starting",
 ]
-NarrativeMode = Literal["Smart Money", "Core Narratives", "All Market", "Microcaps (MEXC)"]
+# "Equity Sectors" is the bucket for anything that is not a coin. Its
+# narrative_label carries the actual sector (Technology, Energy, ...), resolved
+# from data rather than declared — see core/sectors.py.
+NarrativeMode = Literal[
+    "Smart Money", "Core Narratives", "All Market", "Microcaps (MEXC)", "Equity Sectors"
+]
 
 
 class PairItem(BaseModel):
