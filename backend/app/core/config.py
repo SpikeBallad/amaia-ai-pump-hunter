@@ -33,6 +33,28 @@ class Settings(BaseModel):
     binance_futures_ticker_24h_url: str = os.getenv("AMAIA_BINANCE_FUTURES_TICKER_24H_URL", "https://fapi.binance.com/fapi/v1/ticker/24hr")
     mexc_ticker_24h_url: str = os.getenv("AMAIA_MEXC_TICKER_24H_URL", "https://api.mexc.com/api/v3/ticker/24hr")
     mexc_futures_ticker_url: str = os.getenv("AMAIA_MEXC_FUTURES_TICKER_URL", "https://contract.mexc.com/api/v1/contract/ticker")
+    # Alpaca — US equities. Unlike the crypto venues these endpoints need a
+    # key, so an unset credential means "no equities", never a crash: the
+    # exchange is dropped from the pool and the crypto scan runs as before.
+    alpaca_api_key: str = os.getenv("ALPACA_API_KEY", "")
+    alpaca_secret_key: str = os.getenv("ALPACA_SECRET_KEY", "")
+    alpaca_trading_url: str = os.getenv("AMAIA_ALPACA_TRADING_URL", "https://api.alpaca.markets")
+    alpaca_data_url: str = os.getenv("AMAIA_ALPACA_DATA_URL", "https://data.alpaca.markets")
+    # ~11,000 assets are active on Alpaca. Scanning them all would be a
+    # different product; this keeps the equity universe to the most liquid
+    # names, ranked by dollar volume (see _normalize_alpaca_snapshots).
+    # Free and basic plans serve IEX; SIP is a paid subscription and returns
+    # 403 without it. Defaulting to iex means the integration works on the
+    # account that exists rather than the one we wish existed.
+    alpaca_feed: str = os.getenv("AMAIA_ALPACA_FEED", "iex")
+    alpaca_universe_cap: int = int(os.getenv("AMAIA_ALPACA_UNIVERSE_CAP", "100"))
+    # Alpaca's "most active" screener ranks by SHARE count, which selects
+    # penny stocks: measured live, it put CHOW ($0.65, $465k traded) above
+    # NVDA ($1.69bn traded). These two floors re-rank that pool by money,
+    # which is the only volume a setup can be sized against.
+    alpaca_min_price: float = float(os.getenv("AMAIA_ALPACA_MIN_PRICE", "5"))
+    alpaca_min_dollar_volume: float = float(
+        os.getenv("AMAIA_ALPACA_MIN_DOLLAR_VOLUME", "25000000"))
     ohlcv_limit: int = int(os.getenv("AMAIA_OHLCV_LIMIT", "120"))
     max_scan_pairs: int = int(os.getenv("AMAIA_MAX_SCAN_PAIRS", "0"))
     overview_max_limit: int = int(os.getenv("AMAIA_OVERVIEW_MAX_LIMIT", "100"))

@@ -3,13 +3,18 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-ExchangeName = Literal["binance", "mexc", "auto"]
-ResolvedExchangeName = Literal["binance", "mexc"]
+ExchangeName = Literal["binance", "mexc", "alpaca", "auto"]
+ResolvedExchangeName = Literal["binance", "mexc", "alpaca"]
 TimeframeName = Literal["1D", "4H"]
 MarketRequestType = Literal["spot", "futures"]
 MarketTypeFilter = Literal["spot", "futures", "all"]
-MarketTypeName = Literal["BINANCE_SPOT", "BINANCE_FUTURES", "MEXC_SPOT", "MEXC_FUTURES"]
-InstrumentType = Literal["SPOT", "PERPETUAL"]
+# A share is a spot instrument, so equities ride the existing "spot" request
+# type rather than forcing a third MarketRequestType through every dispatcher.
+# Only the venue label and the instrument differ.
+MarketTypeName = Literal[
+    "BINANCE_SPOT", "BINANCE_FUTURES", "MEXC_SPOT", "MEXC_FUTURES", "ALPACA_EQUITY"
+]
+InstrumentType = Literal["SPOT", "PERPETUAL", "EQUITY"]
 SetupState = Literal["HIGH", "WATCHLIST", "IGNORE"]
 PumpState = SetupState
 SetupDirection = Literal["pump", "dump"]

@@ -5,6 +5,7 @@ from statistics import mean
 from app.core.config import settings
 from app.core.narratives import get_narrative, get_narrative_label, is_crypto_symbol
 from app.core.sectors import prime_sectors
+from app.services import alpaca_service
 from app.models.market import (
     CacheInvalidateResponse,
     CacheStatsResponse,
@@ -38,13 +39,21 @@ def _apply_scan_cap(symbols: list[str]) -> list[str]:
 
 
 def _requested_exchanges(exchange: str) -> list[str]:
-    return ["binance", "mexc"] if exchange == "auto" else [exchange]
+    if exchange != "auto":
+        return [exchange]
+    # Alpaca only joins "auto" when it has credentials. Otherwise every scan
+    # would spend a round trip discovering that equities are unavailable, and
+    # an unconfigured install would look broken rather than crypto-only.
+    venues = ["binance", "mexc"]
+    if alpaca_service.enabled():
+        venues.append("alpaca")
+    return venues
 
 
 async def list_pairs() -> PairListResponse:
     pair_map: dict[str, PairItem] = {}
     for market_type in ("spot", "futures"):
-        for exchange_name in ("binance", "mexc"):
+        for exchange_name in _requested_exchanges("auto"):
             try:
                 symbols = _apply_scan_cap(await discover_symbols(exchange_name, market_type))
             except Exception:
@@ -54,8 +63,11 @@ async def list_pairs() -> PairListResponse:
                 if pair is None:
                     pair = PairItem(
                         symbol=symbol,
-                        base_asset=symbol.removesuffix("USDT"),
-                        quote_asset="USDT",
+                        # An equity ticker is its own base asset and is quoted
+                        # in dollars; removesuffix would leave AAPL untouched
+                        # but label it as a USDT pair.
+                        base_asset=symbol.removesuffix("USDT") if is_crypto_symbol(symbol) else symbol,
+                        quote_asset="USDT" if is_crypto_symbol(symbol) else "USD",
                         supported_exchanges=[],
                         supported_markets=[],
                         supported_instruments=[],
@@ -65,8 +77,11 @@ async def list_pairs() -> PairListResponse:
                     pair_map[symbol] = pair
                 if exchange_name not in pair.supported_exchanges:
                     pair.supported_exchanges.append(exchange_name)
-                market_name = f"{exchange_name.upper()}_{market_type.upper()}"
-                instrument_name = "SPOT" if market_type == "spot" else "PERPETUAL"
+                if exchange_name == "alpaca":
+                    market_name, instrument_name = "ALPACA_EQUITY", "EQUITY"
+                else:
+                    market_name = f"{exchange_name.upper()}_{market_type.upper()}"
+                    instrument_name = "SPOT" if market_type == "spot" else "PERPETUAL"
                 if market_name not in pair.supported_markets:
                     pair.supported_markets.append(market_name)  # type: ignore[arg-type]
                 if instrument_name not in pair.supported_instruments:
@@ -89,7 +104,9 @@ async def list_pairs() -> PairListResponse:
         pairs=pairs,
         total=len(pairs),
         supported_timeframes=["1D", "4H"],
-        supported_markets=["BINANCE_SPOT", "BINANCE_FUTURES", "MEXC_SPOT", "MEXC_FUTURES"],
+        supported_markets=[
+            "BINANCE_SPOT", "BINANCE_FUTURES", "MEXC_SPOT", "MEXC_FUTURES", "ALPACA_EQUITY",
+        ],
     )
 
 

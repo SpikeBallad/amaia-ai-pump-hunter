@@ -4,6 +4,7 @@ import httpx
 from fastapi import HTTPException
 
 from app.core.config import settings
+from app.services import alpaca_service
 from app.models.market import (
     InstrumentType,
     MarketRequestType,
@@ -69,10 +70,14 @@ def _to_datetime(timestamp_ms: int) -> datetime:
 
 
 def _canonical_market_type(exchange: str, market_type: MarketRequestType) -> MarketTypeName:
+    if exchange == "alpaca":
+        return "ALPACA_EQUITY"
     return f"{exchange.upper()}_{market_type.upper()}"  # type: ignore[return-value]
 
 
-def _instrument_type(market_type: MarketRequestType) -> InstrumentType:
+def _instrument_type(market_type: MarketRequestType, exchange: str = "") -> InstrumentType:
+    if exchange == "alpaca":
+        return "EQUITY"
     return "SPOT" if market_type == "spot" else "PERPETUAL"
 
 
@@ -280,6 +285,14 @@ async def discover_symbols(exchange: str, market_type: MarketRequestType) -> lis
     if cached_symbols is not None:
         return cached_symbols
 
+    if exchange == "alpaca":
+        # Equities have no perpetuals. Answering "none" is the truth and keeps
+        # the futures scan from asking Alpaca for something it cannot have.
+        symbols = await alpaca_service.discover_symbols() if market_type == "spot" else []
+        _symbol_cache[cache_key] = (
+            _utc_now() + timedelta(seconds=settings.discovery_cache_ttl_seconds), symbols)
+        return symbols
+
     payload = await _request_json(DISCOVERY_URLS[market_type][exchange])
     if not isinstance(payload, dict):
         raise HTTPException(status_code=502, detail=f"Exchange info invalida para {exchange} {market_type}")
@@ -300,6 +313,13 @@ async def fetch_market_snapshots(exchange: str, market_type: MarketRequestType) 
     cached_tickers = _cache_get_tickers(cache_key)
     if cached_tickers is not None:
         return cached_tickers
+
+    if exchange == "alpaca":
+        symbols = await discover_symbols("alpaca", market_type)
+        tickers = await alpaca_service.fetch_snapshots(symbols)
+        _ticker_cache[cache_key] = (
+            _utc_now() + timedelta(seconds=settings.ticker_cache_ttl_seconds), tickers)
+        return tickers
 
     payload = await _request_json(TICKER_URLS[market_type][exchange])
 
@@ -379,6 +399,24 @@ async def _request_mexc_futures(symbol: str, timeframe: TimeframeName) -> OhlcvR
     )
 
 
+async def _request_alpaca(symbol: str, timeframe: TimeframeName) -> OhlcvResponse:
+    candles = await alpaca_service.fetch_bars(symbol, timeframe)
+    if not candles:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No se encontraron velas para {symbol.upper()} en alpaca",
+        )
+    return OhlcvResponse(
+        exchange="alpaca",
+        symbol=symbol.upper(),
+        market_type="ALPACA_EQUITY",
+        instrument_type="EQUITY",
+        timeframe=timeframe,
+        candles=candles,
+        candle_count=len(candles),
+    )
+
+
 async def fetch_ohlcv(
     symbol: str,
     timeframe: TimeframeName,
@@ -386,6 +424,13 @@ async def fetch_ohlcv(
     market_type: MarketRequestType = "spot",
 ) -> OhlcvResponse:
     requested_exchange = exchange.lower()
+
+    # Checked before the table lookup: Alpaca is deliberately not in
+    # EXCHANGE_URLS, so without this it would fall through to the crypto
+    # auto-loop and an equity ticker would be asked of Binance.
+    if requested_exchange == "alpaca":
+        return await _request_alpaca(symbol, timeframe)
+
     exchange_pool = EXCHANGE_URLS[market_type]
 
     if requested_exchange in exchange_pool:
