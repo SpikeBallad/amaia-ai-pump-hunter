@@ -399,6 +399,30 @@ async def _request_mexc_futures(symbol: str, timeframe: TimeframeName) -> OhlcvR
     )
 
 
+# Quote currencies a crypto pair carries on Binance/MEXC. An equity ticker
+# carries none of them.
+_CRYPTO_QUOTES = ("USDT", "USDC", "FDUSD", "BUSD", "TUSD", "USD", "BTC", "ETH", "BNB")
+
+
+def _looks_like_equity(symbol: str) -> bool:
+    """Guess whether this is a stock rather than a crypto pair.
+
+    IT ORDERS, IT DOES NOT DECIDE. The caller tries Alpaca first when this says
+    yes and still falls through to the crypto venues if that fails, so a wrong
+    guess costs one round-trip instead of a 502. That is what makes a heuristic
+    acceptable here: it cannot be the reason a symbol has no data.
+
+    US tickers are one to five letters and nothing else. A crypto pair always
+    ends in a quote currency. "BTC" on its own slips through as an equity — it
+    is three letters and alphabetic — and that is fine: Alpaca answers nothing
+    for it and Binance picks it up on the next attempt.
+    """
+    s = symbol.upper().replace("/", "").replace("-", "")
+    if any(s.endswith(q) and len(s) > len(q) for q in _CRYPTO_QUOTES):
+        return False
+    return s.isalpha() and 1 <= len(s) <= 5
+
+
 async def _request_alpaca(symbol: str, timeframe: TimeframeName) -> OhlcvResponse:
     candles = await alpaca_service.fetch_bars(symbol, timeframe)
     if not candles:
@@ -438,7 +462,26 @@ async def fetch_ohlcv(
             return await _request_mexc_futures(symbol, timeframe)
         return await _request_spot_or_binance_futures(requested_exchange, symbol, timeframe, market_type)
 
+    # ── auto ────────────────────────────────────────────────────────────────
+    #
+    # THE GUARD ABOVE ONLY FIRES WHEN THE CALLER ALREADY NAMED ALPACA — that is,
+    # exactly when it was not needed. Its own comment describes the failure it
+    # does not prevent: with `exchange="auto"`, which is the default, an equity
+    # ticker fell into the crypto loop and NVDA was asked of MEXC. Measured
+    # 2026-08-29: `scan_pair("NVDA", exchange="auto")` returned
+    # `502 api.mexc.com/api/v3/klines`, while `exchange="alpaca"` worked.
+    #
+    # So auto now decides by INSTRUMENT rather than waiting to be told. Alpaca
+    # goes first for something that looks like a stock, and the crypto pool
+    # remains the fallback — the guess picks the order, never the outcome.
     last_error: HTTPException | None = None
+
+    if alpaca_service.enabled() and _looks_like_equity(symbol):
+        try:
+            return await _request_alpaca(symbol, timeframe)
+        except HTTPException as exc:
+            last_error = exc
+
     for candidate in exchange_pool:
         try:
             if candidate == "mexc" and market_type == "futures":
